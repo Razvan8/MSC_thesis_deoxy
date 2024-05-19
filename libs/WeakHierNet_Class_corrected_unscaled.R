@@ -119,9 +119,37 @@ RELU <- function(x) {
 
 
 
+get_vec_theta_hat3<-function(Theta_hat, l1=36,l2=3,l3=4)
+  
+  {range1<-c(1:l1)
+  range2<-c((l1+1):(l1+l2))
+  range3<-c((l1+l2+1):(l1+l2+l3))
+  counter<-0
+  vec_theta<-array(0,l1*(l2+l3)+l2*l3)
+  
+  ## case 1 :a with b or s}
+     for (i in range1)
+         {for (j in c(range2,range3))
+         {counter<-counter+1
+         vec_theta[counter]<-(Theta_hat[i,j] +Theta_hat[j,i])/2
+         }}
+  
+   ## case 2: b with s
+  for (i in range2)
+  {for (j in range3)
+  {counter<-counter+1
+  vec_theta[counter]<-(Theta_hat[i,j] +Theta_hat[j,i])/2
+  }}
+  
+  return(vec_theta)
+
+}
+
+
 ### Find knots - HELPING FUNCTION FOR ONE ROW -b) , c) from alg
 evaluate_knots <- function(Theta_tilda_j, beta_tilda_plus_j, beta_tilda_minus_j, lambda, j, f, t = 1) {
   p <- length(Theta_tilda_j)
+  
   
   set_elements <- numeric(0)
   
@@ -135,6 +163,9 @@ evaluate_knots <- function(Theta_tilda_j, beta_tilda_plus_j, beta_tilda_minus_j,
   
   selected_elements <- set_elements[set_elements >= 0]
   
+  #print('f')
+  #print(f(max(selected_elements)))
+  
   selected_elements<-c(selected_elements,0) #### ADD O TO THE LIST ### IT SHOULD NOT INFLUENCE (TAKE CARE HERE!!!!!!!!!!)
   selected_elements<- sort(selected_elements) ## sort hem increasing
   #print(selected_elements)
@@ -145,6 +176,7 @@ evaluate_knots <- function(Theta_tilda_j, beta_tilda_plus_j, beta_tilda_minus_j,
   #cat("result vector : ", result_vector)
   
   
+  #print(list("knots" = selected_elements,"evaluated"=result_vector))
   return(list("knots" = selected_elements,"evaluated"=result_vector))
 }
 
@@ -210,7 +242,14 @@ ONEROW <- function(beta_tilda_plus_j, beta_tilda_minus_j, Theta_tilda_j, lambda,
   
   f <- function(alpha) {
     #cat(' suma ',sum(abs(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ) ) ))
-    return( sum(abs(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ) ) ) - RELU(beta_tilda_plus_j+t*alpha) - RELU(beta_tilda_minus_j + t* alpha)  )### 1
+    #print('theta')
+    #print(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ))
+    #print(RELU(beta_tilda_plus_j+t*alpha))
+    #print(RELU(beta_tilda_minus_j+t*alpha))
+    result<- sum(abs(Soft_thresholding( Theta_tilda_j[-j], t*(lambda/2+alpha)  ) ) ) - RELU(beta_tilda_plus_j+t*alpha) - RELU(beta_tilda_minus_j + t* alpha)  ### 1
+    if (abs(result)<1e-7) ###this is new for numerical instability
+    {return(0)}
+    return(result)
   }
   
   if ( f(0)<=0)### 1 a)
@@ -234,7 +273,7 @@ ONEROW <- function(beta_tilda_plus_j, beta_tilda_minus_j, Theta_tilda_j, lambda,
   if (length(zero_indices) > 0) {
     #print('d')
     alpha_hat <- knots[zero_indices[1]] # i.e. alpha_hat =p s.t. f(p)=0
-    cat("alpha hat",alpha_hat)
+    #cat("alpha hat",alpha_hat)
     return (final_return(beta_tilda_plus_j = beta_tilda_plus_j, beta_tilda_minus_j = beta_tilda_minus_j, Theta_tilda_j =  Theta_tilda_j[-j],
                          lambda =  lambda, j=j, t=t, alpha_hat = alpha_hat) )}   ### 2)
   
@@ -293,7 +332,7 @@ WeakHierNetUnscaled <- function(X, Beta_plus_init, Beta_minus_init, Theta_init, 
   
   
   # Public method for fitting the model
-  fit <- function( X, Beta_plus_init, Beta_minus_init, Theta_init, y, lambda, t=1, tol=1e-2, max_iter=5000, eps=1e-8, Z=NULL, center=FALSE) {
+  fit <- function( X, Beta_plus_init, Beta_minus_init, Theta_init, y, lambda, t=1, tol=1e-2, max_iter=5000, eps=1e-8, Z=NULL, center=FALSE,l1=0,l2=0,l3=0) {
     
     eps<-1e-8*lambda
     p <- ncol(X)
@@ -366,13 +405,19 @@ WeakHierNetUnscaled <- function(X, Beta_plus_init, Beta_minus_init, Theta_init, 
         self$Beta_hat_plus=Beta_hat_plus
         self$Beta_hat_minus = Beta_hat_minus
         self$Theta_hat=Theta_hat
+        if (l1!=0)
+        {  
+          self$vec_theta_hat <- get_vec_theta_hat3(Theta_hat,l1=l1,l2=l2,l3=l3)}
         return(self) }
       }
       
     }
-    self$Beta_hat_plus=Beta_hat_plus
-    self$Beta_hat_minus = Beta_hat_minus
-    self$Theta_hat=Theta_hat
+    self$Beta_hat_plus<-Beta_hat_plus
+    self$Beta_hat_minus <- Beta_hat_minus
+    self$Theta_hat <- Theta_hat
+    if (l1!=0)
+    {  
+    self$vec_theta_hat <- get_vec_theta_hat3(Theta_hat,l1=l1,l2=l2,l3=l3)}
     cat("It has not converged. The difference between last 2 residuals is:", abs(r_hat[k-1]- r_hat[k-2]))
     return(self) 
   }
