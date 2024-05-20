@@ -231,34 +231,46 @@ dummy.matrix <- function(NF=2, NL=rep(2,NF)) {
 
 # Dummy Matrix
 x.2w <- dummy.matrix(NF=2, NL=c(3,3))
-x.3w <- dummy.matrix(NF=3, NL=c(37,4,5))
+x.3w <- dummy.matrix(NF=3, NL=c(9,6,4))
 x.4w <- dummy.matrix(NF=4, NL=c(20,10,3,4))
 
-x<-cbind(x.3w, rep(1, nrow(x.3w)))
 
-svd_result <- svd(x)
+
+Z=t(apply(x.2w[,c(1:4)], 1, function(x) outer(x, x, "*")))
+minus_ones_count <- colSums(Z == -1)
+
+# Identify columns with no occurrences of -1
+no_minus_ones_columns <- which(minus_ones_count == 0)
+
+# Set columns with no -1 to 0
+Z[, no_minus_ones_columns] <- 0
+Z
+
+#x<-cbind(x.3w, rep(1, nrow(x.3w)))
+
+#svd_result <- svd(x)
 
 # Extract the singular values
-singular_values <- svd_result$d
+#singular_values <- svd_result$d
 
 # Find the largest and smallest singular values
-largest_singular_value <- max(singular_values)
-smallest_singular_value <- min(singular_values)
-largest_singular_value/smallest_singular_value
+#largest_singular_value <- max(singular_values)
+#smallest_singular_value <- min(singular_values)
+#largest_singular_value/smallest_singular_value
 
-libs_path<-file.path("..","libs")
-source(file.path(libs_path,'helper_functions.R'))
-data<-load_deoxi_flourination()
+#libs_path<-file.path("..","libs")
+#source(file.path(libs_path,'helper_functions.R'))
+#data<-load_deoxi_flourination()
 
-colnames(data)
+#colnames(data)
 
-X<-data[,c('a','b','s')]
-one_hot_encoding <- model.matrix(~ . - 1, X)
+#X<-data[,c('a','b','s')]
+#one_hot_encoding <- model.matrix(~ . - 1, X)
 
-dim(one_hot_encoding)
-data$y[data$y>100]
+#dim(one_hot_encoding)
+#data$y[data$y>100]
 
-unique(data$b)
+#unique(data$b)
 
 # Hierarchical Coefficients (2way)
 p.2w <- ncol(x.2w)
@@ -281,6 +293,29 @@ y.2w$true <- beta.true$coeffs[1] + as.matrix(x.2w)%*%as.vector(beta.true$coeffs)
 y.2w
 
 
+
+# Hierarchical Coefficients (2way)
+p.3w <- ncol(x.3w)
+n.3w <- p.3w + 1
+beta.min <- 1
+beta.max <- 10
+beta.true <- data.frame(rep(0, n.3w))
+rownames(beta.true) <- c("interc", colnames(x.3w))
+colnames(beta.true) <- c("coeffs")
+beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+levs.true <- c("interc","A.1", "A.2", "A.3","A.4", "A.5", "A.6", "A.7",  "B.1", "B.2","B.3", "B.4", "C.1", "C.2","C.3",  "A.1:B.1","A.1:B.2","A.1:B.3",
+               "A.2:B.1","A.2:B.2","A.2:B.3", "A.3:B.1","A.3:B.2","A.3:B.3", "A.5:B.1","A.5:B.2","A.5:B.3", "B.1:C1","B.2:C2","B.3:C3", "B4:C1", "B.4:C3", "B4:C2", 
+               "A.7:B.1","A.7:B.2","A.7:B.3","A.6:B.1","A.6:B.2","A.6:B.3",
+               "A.2:B.1:C.3","A.2:B.2:C.3","A.2:B.3:C.3", "A.3:B.1:C.2","A.3:B.2:C.2","A.3:B.3:C.1","A.3:B.3:C.2","A.3:B.3:C.3", "A.5:B.1:C.3","A.5:B.2:C.3" )
+beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+beta.true
+
+# Response vector (2way)
+sigma.y <- 4
+y.3w <- data.frame(row.names=rownames(x.3w))
+y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
+y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
+y.3w
 
 
 

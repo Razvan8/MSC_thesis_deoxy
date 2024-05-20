@@ -257,10 +257,10 @@ beta[91]=9 #B9:C3
 #3way
 beta[106]=2  #A1B5C3
 beta[105]=1  #A1B5C2
-beta[128]=-2  #A1B9C3
+beta[116]=-3  #A1B9C1
 
-
-noise<-rnorm(dim(x.3w)[1],0, 0.03 )
+set.seed(123)
+noise<-rnorm(dim(x.3w)[1],0, 0.1 )
 X<-as.matrix(x.3w)
 y<-X%*%beta+noise
 
@@ -300,7 +300,7 @@ print(paste("Low SNR:", low_snr))
 
 
 
-return(list('X'=X, 'y'=y))
+return(list('X'=X, 'y'=y, 'beta'=beta))
 
 }
 
@@ -313,7 +313,70 @@ return(list('X'=X, 'y'=y))
 
 
 
-##Hierarchical datasets big mains smaller 2way smaller 3way
+##Hierarchical dataset ############################## quite sparse##
+
+create_hier_dataset_medium<-function(){
+x.3w <- dummy.matrix(NF=3, NL=c(6,5,4))
+# Hierarchical Coefficients (2way)
+p.3w <- ncol(x.3w)
+n.3w <- p.3w + 1
+beta.min <- 1
+beta.max <- 10
+beta.true <- data.frame(rep(0, n.3w))
+rownames(beta.true) <- c("interc", colnames(x.3w))
+colnames(beta.true) <- c("coeffs")
+beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+
+levs.true <- c("interc","A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",  "A.1:B.1","A.1:B.2",
+               "A.2:B.1","A.2:B.2", "A.3:B.1","A.3:B.2",
+               "A.1:C.1","A.1:C.2","A.2:C.1", "A.2:C.2","A.3:C.1","A.3:C.2", 
+               "B.1:C1","B.1:C2", "B2:C1", "B.2:C2", 
+               "A.1:B.1:C.1","A.1:B.1:C.2","A.1:B.2:C.1", "A.1:B.2:C.2","A.2:B.1:C.1","A.2:B.1:C.2","A.2:B.2:C.2","A.3:B.1:C.1" )
+
+beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+#beta.true
+
+# Response vector (2way)
+sigma.y <- 3
+y.3w <- data.frame(row.names=rownames(x.3w))
+y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
+y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
+return(list('X'=as.matrix(x.3w), 'y'=y.3w, 'beta'=beta.true))
+}
+
+
+
+create_hier_dataset_medium_2way<-function(){
+  x.3w <- dummy.matrix(NF=3, NL=c(6,5,4))
+  # Hierarchical Coefficients (2way)
+  p.3w <- ncol(x.3w)
+  n.3w <- p.3w + 1
+  beta.min <- 1
+  beta.max <- 10
+  beta.true <- data.frame(rep(0, n.3w))
+  rownames(beta.true) <- c("interc", colnames(x.3w))
+  colnames(beta.true) <- c("coeffs")
+  beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+  
+  levs.true <- c("interc","A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",  "A.1:B.1","A.1:B.2",
+                 "A.2:B.1","A.2:B.2", "A.3:B.1","A.3:B.2",
+                 "A.1:C.1","A.1:C.2","A.2:C.1", "A.2:C.2","A.3:C.1","A.3:C.2", 
+                 "B.1:C1","B.1:C2", "B2:C1", "B.2:C2")
+  
+  beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+  #beta.true
+  
+  # Response vector (2way)
+  sigma.y <- 3
+  y.3w <- data.frame(row.names=rownames(x.3w))
+  y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
+  y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
+  return(list('X'=as.matrix(x.3w), 'y'=y.3w, 'beta'=beta.true))
+}
+
+
+
+
 
 
 

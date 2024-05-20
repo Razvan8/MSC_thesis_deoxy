@@ -146,6 +146,42 @@ get_vec_theta_hat3<-function(Theta_hat, l1=36,l2=3,l3=4)
 }
 
 
+
+
+get_theta_hat_from_vec3<-function(vec_theta, l1=36,l2=3,l3=4)
+  
+{ counter<-1
+  range1<-c(1:l1)
+range2<-c((l1+1):(l1+l2))
+range3<-c((l1+l2+1):(l1+l2+l3))
+Theta_hat<-matrix(0,nrow=l1+l2+l3, ncol=l1+l2+l3)
+
+## case 1 :a with b or s}
+for (i in range1)
+{for (j in c(range2,range3))
+{
+  Theta_hat[i,j]<-vec_theta[counter]/2 
+  Theta_hat[j,i]<-vec_theta[counter]/2 
+  counter<-counter+1
+}}
+
+## case 2: b with s
+for (i in range2)
+{for (j in range3)
+{
+  Theta_hat[i,j]<-vec_theta[counter]/2 
+  Theta_hat[j,i]<-vec_theta[counter]/2 
+  counter<-counter+1
+}}
+assert(counter==l1*l2+l2*l3+l3*l1+1, 'smth wrong with counter')
+return(Theta_hat)
+}
+
+
+
+
+
+
 ### Find knots - HELPING FUNCTION FOR ONE ROW -b) , c) from alg
 evaluate_knots <- function(Theta_tilda_j, beta_tilda_plus_j, beta_tilda_minus_j, lambda, j, f, t = 1) {
   p <- length(Theta_tilda_j)
@@ -376,14 +412,14 @@ WeakHierNetUnscaled <- function(X, Beta_plus_init, Beta_minus_init, Theta_init, 
       #print(length(Beta_hat_plus))
       r_hat <-y- X %*% (Beta_hat_plus - Beta_hat_minus) - Z %*% vec_Theta_hat / 2
       r_hat<- -  r_hat ############################### TAKE CARE ! why like this? why/2 ########################
-      if (k%%30==3)
+      if (k%%30==2)
       {cat(' Loss rhat',mean(r_hat^2))}
       #cat("Theta", Theta_hat) 
       
       
       
       
-      for (j in 1:p) { #Take care dimensions match
+      for (j in 1:p) { #Take care dimensions match  ##DE MODIFICAT DOAR CU CELE POSIBILE!!
         j_cols= get_positions(p,j)
 
         #cat('mean(r_hat): ', mean(r_hat), " ; ")
