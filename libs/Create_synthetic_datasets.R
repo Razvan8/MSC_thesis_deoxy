@@ -257,7 +257,7 @@ beta[91]=9 #B9:C3
 #3way
 beta[106]=2  #A1B5C3
 beta[105]=1  #A1B5C2
-beta[116]=-3  #A1B9C1
+beta[118]=-3  #A1B9C3
 
 set.seed(123)
 noise<-rnorm(dim(x.3w)[1],0, 0.1 )
@@ -276,6 +276,7 @@ generate_y_with_snr <- function(X, beta, snr) {
   noise_variance <- signal_variance / snr
   # Generate the noise
   epsilon <- rnorm(nrow(X), mean = 0, sd = sqrt(noise_variance))
+  print("noise var")
   print(noise_variance)
   # Generate the response
   Y <- signal + epsilon
@@ -284,8 +285,8 @@ generate_y_with_snr <- function(X, beta, snr) {
 
 # Generate data with different SNR values
 Y_high_snr <- generate_y_with_snr(X, beta, snr = 10)  # High SNR
-Y_moderate_snr <- generate_y_with_snr(X, beta, snr = 5)  # Moderate SNR
-Y_low_snr <- generate_y_with_snr(X, beta, snr = 0.5)  # Low SNR
+Y_moderate_snr <- generate_y_with_snr(X, beta, snr = 1.5)  # Moderate SNR
+Y_low_snr <- generate_y_with_snr(X, beta, snr = 1)  # Low SNR
 
 # Check the variances and SNRs
 signal_variance <- var(as.vector(X %*% beta))
@@ -348,7 +349,7 @@ return(list('X'=as.matrix(x.3w), 'y'=y.3w, 'beta'=beta.true))
 
 create_hier_dataset_medium_2way<-function(){
   x.3w <- dummy.matrix(NF=3, NL=c(6,5,4))
-  # Hierarchical Coefficients (2way)
+
   p.3w <- ncol(x.3w)
   n.3w <- p.3w + 1
   beta.min <- 1
@@ -366,8 +367,36 @@ create_hier_dataset_medium_2way<-function(){
   beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
   #beta.true
   
-  # Response vector (2way)
-  sigma.y <- 3
+  get_sigma_from_snr <- function(X, beta, snr) {
+    # Calculate the signal
+    
+    signal <- X %*% beta
+    # Calculate the variance of the signal
+    signal_variance <- var(as.vector(signal))
+    # Calculate the variance of the noise
+    noise_variance <- signal_variance / snr
+    cat("Error sigma: ", srqt(noise_variance))
+    print(" ")
+    return(sqrt(noise_variance))
+  }
+  
+  # Generate data with different SNR values
+  Y_high_snr <- generate_y_with_snr(X, beta, snr = 10)  # High SNR
+  Y_moderate_snr <- generate_y_with_snr(X, beta, snr = 1.5)  # Moderate SNR
+  Y_low_snr <- generate_y_with_snr(X, beta, snr = 1)  # Low SNR
+  
+  # Check the variances and SNRs
+  signal_variance <- var(as.vector(X %*% beta))
+  high_snr <- signal_variance / var(Y_high_snr - X %*% beta)
+  moderate_snr <- signal_variance / var(Y_moderate_snr - X %*% beta)
+  low_snr <- signal_variance / var(Y_low_snr - X %*% beta)
+  
+  print(paste("High SNR:", high_snr))
+  print(paste("Moderate SNR:", moderate_snr))
+  print(paste("Low SNR:", low_snr))
+  
+  
+  sigma.y <- get_sigma_from_snr(x.3w, beta.true,snr=2)
   y.3w <- data.frame(row.names=rownames(x.3w))
   y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
   y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
@@ -381,7 +410,40 @@ create_hier_dataset_medium_2way<-function(){
 
 
 
-##Hierarchical dataset small mains, beigger 2ay 3way
+##Hierarchical dataset similar to paper ############################################################################
+
+
+create_hier_dataset_paper<-function(){
+  x.3w <- dummy.matrix(NF=3, NL=c(15,10,5))
+  # Hierarchical Coefficients (2way)
+  p.3w <- ncol(x.3w)
+  n.3w <- p.3w + 1
+  beta.min <- 1
+  beta.max <- 10
+  beta.true <- data.frame(rep(0, n.3w))
+  rownames(beta.true) <- c("interc", colnames(x.3w))
+  colnames(beta.true) <- c("coeffs")
+  beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+  
+  levs.true <- c("interc","A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
+                 "A.1:B.1","A.1:B.2","A.2:B.1","A.2:B.2",
+                 "A.1:C.1","A.1:C.2", "A.2:C.1","A.2:C.2",
+                 "B.1:C.1","B.3:C.3",
+                 "A.1:B.1:C.1","A.1:B.1:C.2","A.1:B.2:C.1", "A.1:B.2:C.2","A.2:B.1:C.1","A.2:B.1:C.2","A.2:B.2:C.2" )
+  
+  beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+  #beta.true
+  
+  # Response vector (2way)
+  sigma.y <- 3
+  y.3w <- data.frame(row.names=rownames(x.3w))
+  y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
+  y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
+  return(list('X'=as.matrix(x.3w), 'y'=y.3w, 'beta'=beta.true))
+}
+
+
+
 
 
 
