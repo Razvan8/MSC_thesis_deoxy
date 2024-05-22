@@ -15,6 +15,7 @@ source(file.path(libs_path,'helper_functions.R'))
 source(file.path(libs_path,'WeakHierNet_Class_corrected_unscaled.R'))
 data<-load_deoxi_flourination()
 
+
 print(levels(data$a))# 37
 print(levels(data$b))# 4
 print(levels(data$s))# 5

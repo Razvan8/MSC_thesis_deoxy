@@ -9,7 +9,16 @@ assert <- function(condition, message) {
 
 
 ###USEFUL FUNCTION FOR LASSO LOSS AND WEAK HIER NET
+round_up_to_5th_decimal <- function(number) {
+  # Round up to the 5th decimal place
+  rounded_number <- ceiling(number * 10^5) / 10^5
+  return(rounded_number)
+}
 
+
+stable_alpha<-function(x)
+{if (x>=0)
+  {return((x+1e-5)*1.01)}}
 
 
 get_positions <- function(p, j) {
@@ -111,6 +120,8 @@ evaluate_knots_seq <- function(psi_tilda_jk, lambda, f, t = 1,c=1) {
   #print(selected_elements)
   
   result_vector <- sapply(selected_elements, f)## Evaluate f(p) for every p
+  if(max(result_vector)==0)
+  {print("There is some numerical instability")}
   #cat("selected elements : ", selected_elements)
   #print("  ")
   #cat("result vector : ", result_vector)
@@ -149,7 +160,9 @@ find_adjacent_knots_and_alpha <- function(knots, evaluated) {
 }
 
 final_return_seq<- function(psi_hat_jk, lambda, t, alpha_hat) # returns psi_jk with all the elements inside (vector with 40 elements)
-{ 
+  
+{ #print(alpha_hat)
+  alpha_hat<-stable_alpha(alpha_hat) #################### ADDED FOR STABILITY###################
   psi_hat_jk = Soft_thresholding(psi_hat_jk, t*(lambda/6 + alpha_hat))
   return (psi_hat_jk)
 }
@@ -389,9 +402,13 @@ ONEROW_SEQ <- function(psi_tilda_jk, lambda, theta_bound_jk,  t=1, c=1) {
     #print('alpha')
     #print(alpha)
     #cat(' suma ',sum(abs(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ) ) ))
+    alpha<-stable_alpha(alpha)
+    
     result<- sum(abs(Soft_thresholding( psi_tilda_jk, t*(lambda/6+alpha)  ) ) ) - c*abs(theta_bound_jk) ### 1
-    if (abs(result)<1e-7) ###this is new
-    {return(0)}## to solve numerical instability
+    if (abs(result)<1e-10) ###this is new
+    {if (abs(result)>0)
+      {print("There might be numerical insability")}
+      return(0)}## to solve numerical instability
     return(result)
   }
   if ( f(0)<=0)  ### 1 a)

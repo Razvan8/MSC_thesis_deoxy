@@ -7,6 +7,13 @@ assert <- function(condition, message) {
   if (!condition) stop(message)
 }
 
+round_up_to_5th_decimal <- function(number) {
+  # Round up to the 5th decimal place
+  rounded_number <- ceiling(number * 10^5) / 10^5
+  return(rounded_number)
+}
+
+
 
 ###USEFUL FUNCTION FOR LASSO LOSS AND WEAK HIER NET
 
@@ -22,6 +29,8 @@ set_Z_values_to_zero <- function(matrix, p) {
   # Return the modified matrix
   return(matrix)
 }
+
+
 
 
 get_positions <- function(p, j) {
@@ -160,8 +169,8 @@ Theta_hat<-matrix(0,nrow=l1+l2+l3, ncol=l1+l2+l3)
 for (i in range1)
 {for (j in c(range2,range3))
 {
-  Theta_hat[i,j]<-vec_theta[counter]/2 
-  Theta_hat[j,i]<-vec_theta[counter]/2 
+  Theta_hat[i,j]<-vec_theta[counter]
+  Theta_hat[j,i]<-vec_theta[counter] 
   counter<-counter+1
 }}
 
@@ -169,8 +178,8 @@ for (i in range1)
 for (i in range2)
 {for (j in range3)
 {
-  Theta_hat[i,j]<-vec_theta[counter]/2 
-  Theta_hat[j,i]<-vec_theta[counter]/2 
+  Theta_hat[i,j]<-vec_theta[counter]
+  Theta_hat[j,i]<-vec_theta[counter] 
   counter<-counter+1
 }}
 assert(counter==l1*l2+l2*l3+l3*l1+1, 'smth wrong with counter')
@@ -211,8 +220,11 @@ evaluate_knots <- function(Theta_tilda_j, beta_tilda_plus_j, beta_tilda_minus_j,
   #print("  ")
   #cat("result vector : ", result_vector)
   
-  
-  #print(list("knots" = selected_elements,"evaluated"=result_vector))
+  max_val<-max(abs(Theta_tilda_j))
+  max_elem<-max_val/t-lambda/2
+  cat("max elem ",max_elem, "   f(maxelem): ",  f(max_elem))
+  print(list("knots" = selected_elements,"evaluated"=result_vector))
+ 
   return(list("knots" = selected_elements,"evaluated"=result_vector))
 }
 
@@ -250,11 +262,12 @@ find_adjacent_knots_and_alpha <- function(knots, evaluated) {
 ### FINAL RETURN - HELPING FUNCTION FOR ONEROW
 final_return<- function(beta_tilda_plus_j, beta_tilda_minus_j, Theta_tilda_j, lambda,j, t, alpha_hat)
   
-{ beta_hat_plus_j = RELU(beta_tilda_plus_j +t * alpha_hat -t*lambda ) ###bc -t*lambda has to be in beta tilda !!!
+{ alpha_hat<-round_up_to_5th_decimal(alpha_hat) ################### TAKE CARE!! FOR NUMERICAL STABILITY###################
+  beta_hat_plus_j = RELU(beta_tilda_plus_j +t * alpha_hat -t*lambda ) ###bc -t*lambda has to be in beta tilda !!!
 beta_hat_minus_j = RELU(beta_tilda_minus_j +t * alpha_hat -t*lambda) ##
 #cat("In final return alpha hat, beta tilda plus j, t, beta hat plus", alpha_hat,beta_tilda_plus_j,t, beta_hat_plus_j)
 
-Theta_hat_j = Soft_thresholding(Theta_tilda_j, t*(lambda/2 + alpha_hat))
+Theta_hat_j = Soft_thresholding(Theta_tilda_j, t*(lambda/2 + alpha_hat) )
 #print(Theta_hat_j)
 if (j==1){ 
   #print("1")
@@ -282,9 +295,10 @@ ONEROW <- function(beta_tilda_plus_j, beta_tilda_minus_j, Theta_tilda_j, lambda,
     #print(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ))
     #print(RELU(beta_tilda_plus_j+t*alpha))
     #print(RELU(beta_tilda_minus_j+t*alpha))
-    result<- sum(abs(Soft_thresholding( Theta_tilda_j[-j], t*(lambda/2+alpha)  ) ) ) - RELU(beta_tilda_plus_j+t*alpha) - RELU(beta_tilda_minus_j + t* alpha)  ### 1
-    if (abs(result)<1e-7) ###this is new for numerical instability
-    {return(0)}
+    alpha<-round_up_to_5th_decimal(alpha) ##########THIS IS NEW FOR STABILITY
+    result<- sum(abs(Soft_thresholding( Theta_tilda_j[-j],  t*(lambda/2+alpha) )  ) )  - RELU(beta_tilda_plus_j+t*alpha) - RELU(beta_tilda_minus_j + t* alpha)  ### 1
+    #if (abs(result)<1e-10) ###this is new for numerical instability
+    #{return(0)}
     return(result)
   }
   

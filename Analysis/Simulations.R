@@ -14,6 +14,8 @@ X<-data$X
 y<-data$y
 beta_trues<-data$beta
 
+
+
 beta_true<-beta_trues[1:16]
 theta_true<-beta_trues[17:91]
 psi_true<-beta_trues[92:199]

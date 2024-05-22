@@ -491,6 +491,7 @@ WeakHierNet_seq_2way3 <- function(X, theta_init, y, beta_bound, lambda, t=1, tol
     p <- ncol(X)
     n<-nrow(X)
     if(self$scale==TRUE){
+      print('was scaled')
     X <- scale(X)}#standardize X
     y <- scale(y, center = TRUE, scale = FALSE) #center y # MAYBE ALREADY SCALED ACTUALLY???????????????????????
     
