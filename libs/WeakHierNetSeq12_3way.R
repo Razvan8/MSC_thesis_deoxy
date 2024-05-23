@@ -11,6 +11,10 @@ assert <- function(condition, message) {
 ###USEFUL FUNCTION FOR LASSO LOSS AND WEAK HIER NET
 
 
+stable_alpha<-function(x)
+{if (x>=0)
+{return((x+1e-5)*1.0001)}}
+
 
 get_positions <- function(p, j) {
   # Generate all pairs
@@ -49,19 +53,14 @@ matrix_position_to_vector_index3<- function(position_tuple, l1=36,l2=3,l3=4) ## 
 
    
   
-  if( all(range_x == c(1:l1)) ==TRUE ) #a
-  { if( all(range_y == c( (l1+1) :(l1+l2) )) ==TRUE ){  #ab
-    position_theta<-(x-1)*l2 +y-l1  }
+  if( all(range_x == c(1:l1)) ==TRUE ) #ab or ac
+  { 
+   position_theta<- (x-1)*(l2+l3) +(y-l1)  }
     
-  if( all( range_y == c( (l1+l2+1) :(l1+l2+l3) ) ) ==TRUE ){  #ac
-      position_theta<- l1*l2 + (x-1)*l3 +y-l1-l2  }
     
-    }
-  
   if( all ( range_x == c( (l1+1): (l1+l2) ) ) == TRUE )  #bc
   {position_theta<-l1*(l2+l3) + (x-l1-1)*l3 + y- (l1+l2)  } 
   #print(position_theta)
-  
   return(position_theta)
   
 }
@@ -174,6 +173,7 @@ find_adjacent_knots_and_alpha <- function(knots, evaluated) {
 
 final_return_seq_2way3<- function(theta_hat_j, lambda, t, alpha_hat) # returns theta_jk with all the elements inside (vector with 40 elements)
 { 
+  alpha_hat<-stable_alpha(alpha_hat)
   theta_hat_j = Soft_thresholding(theta_hat_j, t*(lambda/2 + alpha_hat))
   return (theta_hat_j)
 }
@@ -276,8 +276,8 @@ Theta_hat<-matrix(0,nrow=l1+l2+l3, ncol=l1+l2+l3)
 for (i in range1)
 {for (j in c(range2,range3))
 {
-  Theta_hat[i,j]<-vec_theta[counter]/2 
-  Theta_hat[j,i]<-vec_theta[counter]/2 
+  Theta_hat[i,j]<-vec_theta[counter]
+  Theta_hat[j,i]<-vec_theta[counter] 
   counter<-counter+1
 }}
 
@@ -285,8 +285,8 @@ for (i in range1)
 for (i in range2)
 {for (j in range3)
 {
-  Theta_hat[i,j]<-vec_theta[counter]/2 
-  Theta_hat[j,i]<-vec_theta[counter]/2 
+  Theta_hat[i,j]<-vec_theta[counter] 
+  Theta_hat[j,i]<-vec_theta[counter] 
   counter<-counter+1
 }}
 assert(counter==l1*l2+l2*l3+l3*l1+1, 'smth wrong with counter')
@@ -396,9 +396,13 @@ ONEROW_SEQ12 <- function(theta_tilda_j, lambda, beta_bound_j, j, t=1, c=1) {
     #print('alpha')
     #print(alpha)
     #cat(' suma ',sum(abs(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ) ) ))
+    alpha<-stable_alpha(alpha)
     result<- sum( abs( Soft_thresholding( theta_tilda_j[-j], t*(lambda/2+alpha)  ) ) ) - c*abs(beta_bound_j) ### 1
     if (abs(result)<1e-10) ###this is new
-    {return(0)}## to solve numerical instability
+    { if(abs(result)>0)
+    {print("There might be numerical intsability")}
+      return(0)}
+    ## to solve numerical instability
     return(result)
   }
   if ( f(0)<=0)  ### 1 a)
@@ -527,10 +531,10 @@ WeakHierNet_seq_2way3 <- function(X, theta_init, y, beta_bound, lambda, t=1, tol
         self$vec_theta_hat=get_theta_vec_2way3(Theta_hat,l1=l1,l2=l2,l3=l3)
         return(self) }
       
-        if ( sum(r_hat_old^2)- sum(r_hat^2) <0) #TAKE CARE RHAT IS VECTOR  !!! Sum because already scaled !!!!!!
-        { gradient_stop<-gradient_stop+1
-        print('decreased gradient')
-        t<-t/1.01} 
+        #if ( sum(r_hat_old^2)- sum(r_hat^2) <0) #TAKE CARE RHAT IS VECTOR  !!! Sum because already scaled !!!!!!
+        #{ gradient_stop<-gradient_stop+1
+        #print('decreased gradient')
+        #t<-t/1.01} 
           
         if (gradient_stop>30){
           cat("Stopped because of gradient at iteration ",it)

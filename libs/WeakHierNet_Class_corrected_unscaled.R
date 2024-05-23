@@ -7,10 +7,10 @@ assert <- function(condition, message) {
   if (!condition) stop(message)
 }
 
-round_up_to_5th_decimal <- function(number) {
-  # Round up to the 5th decimal place
-  rounded_number <- ceiling(number * 10^5) / 10^5
-  return(rounded_number)
+stable_alpha <- function(number) {
+  if (number >0){
+  number <- (number+1e-5) *1.00001}
+  return(number)
 }
 
 
@@ -222,8 +222,8 @@ evaluate_knots <- function(Theta_tilda_j, beta_tilda_plus_j, beta_tilda_minus_j,
   
   max_val<-max(abs(Theta_tilda_j))
   max_elem<-max_val/t-lambda/2
-  cat("max elem ",max_elem, "   f(maxelem): ",  f(max_elem))
-  print(list("knots" = selected_elements,"evaluated"=result_vector))
+  #cat("max elem ",max_elem, "   f(maxelem): ",  f(max_elem))
+  #print(list("knots" = selected_elements,"evaluated"=result_vector))
  
   return(list("knots" = selected_elements,"evaluated"=result_vector))
 }
@@ -262,7 +262,7 @@ find_adjacent_knots_and_alpha <- function(knots, evaluated) {
 ### FINAL RETURN - HELPING FUNCTION FOR ONEROW
 final_return<- function(beta_tilda_plus_j, beta_tilda_minus_j, Theta_tilda_j, lambda,j, t, alpha_hat)
   
-{ alpha_hat<-round_up_to_5th_decimal(alpha_hat) ################### TAKE CARE!! FOR NUMERICAL STABILITY###################
+{ alpha_hat<-stable_alpha(alpha_hat) ################### TAKE CARE!! FOR NUMERICAL STABILITY###################
   beta_hat_plus_j = RELU(beta_tilda_plus_j +t * alpha_hat -t*lambda ) ###bc -t*lambda has to be in beta tilda !!!
 beta_hat_minus_j = RELU(beta_tilda_minus_j +t * alpha_hat -t*lambda) ##
 #cat("In final return alpha hat, beta tilda plus j, t, beta hat plus", alpha_hat,beta_tilda_plus_j,t, beta_hat_plus_j)
@@ -295,7 +295,7 @@ ONEROW <- function(beta_tilda_plus_j, beta_tilda_minus_j, Theta_tilda_j, lambda,
     #print(Soft_thresholding( Theta_tilda_j, t*(lambda/2+alpha)  ))
     #print(RELU(beta_tilda_plus_j+t*alpha))
     #print(RELU(beta_tilda_minus_j+t*alpha))
-    alpha<-round_up_to_5th_decimal(alpha) ##########THIS IS NEW FOR STABILITY
+    alpha<-stable_alpha(alpha) ##########THIS IS NEW FOR STABILITY
     result<- sum(abs(Soft_thresholding( Theta_tilda_j[-j],  t*(lambda/2+alpha) )  ) )  - RELU(beta_tilda_plus_j+t*alpha) - RELU(beta_tilda_minus_j + t* alpha)  ### 1
     #if (abs(result)<1e-10) ###this is new for numerical instability
     #{return(0)}

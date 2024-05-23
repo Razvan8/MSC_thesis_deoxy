@@ -11,7 +11,7 @@ source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
 
 
 
-data=create_hier_dataset_paper_3way()
+data=create_hier_dataset_paper_many_main()
 X<-data$X
 y<-data$y$obs
 beta_trues<-data$beta[-1,]  ##without intercept
@@ -21,8 +21,8 @@ beta_trues<-data$beta[-1,]  ##without intercept
 
 
 
-l1=9
-l2=9
+l1=6
+l2=5
 l3=4
 
 
@@ -46,7 +46,9 @@ zeros_theta_true<-sum(theta_true==0)
 zeros_psi_true<-sum(psi_true==0)
 total_zeros<-zeros_beta_true+zeros_theta_true+zeros_psi_true
 
-print(sum(zeros_beta_true+zeros_theta_true))
+print(zeros_beta_true)
+print(zeros_theta_true)
+print(zeros_psi_true)
 print(total_zeros)
 print(length(beta_trues))
 
@@ -76,12 +78,12 @@ y_all<-as.vector(y[,1])
 
 
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.25)
+lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.32)
 coefs<-coefficients(lasso_model)[-1]
 #coefs
 #sum(coefs==0)
 
-print(coefs[range_theta])
+#print(coefs[range_theta])
 
 all_beta_functions(beta_true, coefs[range_main])
 all_beta_functions(theta_true, coefs[range_theta])
@@ -118,43 +120,11 @@ coeffs_main<-coefs[range_main]
 
 
 
-#dim(X_only_main)[2]
-#l1+l2+l3
-
-
-########################## ANALYSIS WITH SEQ1-2 and SEQ2-3 ###########################################################
-
-
-
-#all_beta_functions(theta_true, c(fitted$vec_theta_hat))
-
-#fitted$theta_hat
-
-#print(fitted$vec_theta_hat[0:30])
-#print(theta_true[0:30])
-
-#print(coeffs_main)
-#print(fitted$theta_hat)
-
-#print(length(range_theta))
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 ###### ANALYSIS WITH my library   #########################################
 
-lmd<-50
+lmd<-45
 t<-1e-5
 
 beta_init_lasso_plus<- beta_init_lasso
@@ -214,20 +184,22 @@ beta_trues[range_theta]
 ###HIERNET LIBRARY##############################################
 #print("-----Hiernet library-----")
 
-fit=hierNet(X_only_main, y_all, lam=25, diagonal = FALSE, stand.main=FALSE,tol=1e-5)
+fit=hierNet(X_only_main, y_all, lam=15, diagonal = FALSE, stand.main=FALSE,tol=1e-10)
 #fit$th
 predicted_lib=predict(fit,X_only_main)
 print(r2(y_all, predicted_lib))
 
 sum(get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)==0) + sum( (fit$bp-fit$bn) ==0)
 
+fit$bp - fit$bn
 
-#get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)
+get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)
+
 #print(fit$th)
 
 #fit$bp-fit$bn
 #print(sum( get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)==0))
-print("hiernet")sss
+print("hiernet")
 all_beta_functions(beta_true, c(fit$bp-fit$bn) )
 all_beta_functions(theta_true, get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3))
 #get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)[1:40]
@@ -246,6 +218,7 @@ r_2way<-y_all-predicted_lib
 
 #Residuals my WHN
 predicted<-myWeakHierNet$predict(fitted, X_only_main)
+r2(y_all, predicted )
 r_2way<-y_all-predicted
 
 
@@ -286,6 +259,8 @@ sum(get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)==0) + sum( (fit$bp-fit$bn) ==
 print("r2 for WHN + SEQ2-3")
 r2(y_all,predicted_lib + myWeakHierNet_seq3$predict(fitted3,X_3way))
 
+sum(fitted$Beta_hat_plus-fitted$Beta_hat_minus==0)+ sum(fitted$vec_theta_hat==0)+sum(fitted3$vec_psi_hat==0)
+
 ###RESULTS FOR PSI#####
 
 all_beta_functions(psi_true, c(fitted3$vec_psi_hat))
@@ -299,17 +274,17 @@ fitted$vec_psi_hat
 
 ########################## ANALYSIS WITH SEQ1-2 and SEQ2-3 ###########################################################
 
-lasso_main <- glmnet(X_only_main, y_all, alpha = 1, lambda=0.25)
+lasso_main <- glmnet(X_only_main, y_all, alpha = 1, lambda=0.29)
 
 coefs_lasso_main<-coefficients(lasso_main)[-1]
 all_beta_functions(beta_true, coefs_lasso_main)#lasso main
 
 beta_bound<-coefs_lasso_main*3
-theta_init<-get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3)*0
+theta_init<-get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3)*1
 
 print(beta_bound)
 
-lmd<-70
+lmd<-55
 t<-5e-3
 r_main<-y_all- X_only_main%*%coefs_lasso_main -coefficients(lasso_main)[1]
 source(file.path(libs_path,'WeakHierNetSeq12_3way.R'))
@@ -338,9 +313,9 @@ r_2way<-r_main-seq12$predict(fit12, X_2way )
 
 psi_init<-get_psi_from_psi_vec3(as.vector(coefficients(lasso_model)[-1]),l1=l1,l2=l2,l3=l3)*0 ## psi, get intercept out
 theta_bound<- (fit12$theta_hat +t(fit12$theta_hat))*5 ##bound
-lambda<-80
+lambda<-60
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
-t<-6e-2
+t<-5e-2
 myWeakHierNet_seq3 <- WeakHierNet_seq3(X=X_3way, psi_init=psi_init, y=r_2way, theta_bound=theta_bound, lambda=lambda, t=t, tol=1e-8, max_iter=5000, eps=1e-8,
                                        l1=l1,l2=l2,l3=l3, scale = FALSE)
 
