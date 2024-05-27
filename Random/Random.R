@@ -1,0 +1,38 @@
+library(glmnet)
+
+
+set.seed(123)
+
+col1 <- c(rep(1, 40), rep(0, 40), rep(-1, 40))
+col2 <- c(rep(0, 40), rep(1, 40), rep(-1, 40))
+mat <- cbind(col1, col2)
+
+eps1 <- rnorm(n = nrow(mat), mean = 0, sd = 2)
+y1 <- 3 * mat[,1] - 3 * mat[,2] + eps1
+
+
+lasso_model1 <- glmnet(mat, y1, alpha = 1, lambda = 0.5)
+
+
+coefficients1 <- coef(lasso_model1)
+
+
+print("Coefficients for Case 1 (y = 3 * col1 - 3 * col2 + eps(0,1)):")
+print(coefficients1)
+
+
+
+
+
+eps2 <- rnorm(n = nrow(mat), mean = 0, sd = 1)
+y2 <- 3 * mat[,1] + 0 * mat[,2] + eps2
+
+
+lasso_model2 <- glmnet(mat, y2, alpha = 1, lambda = 0.5)
+
+
+coefficients2 <- coef(lasso_model2)
+
+
+print("Coefficients for Case 2 (y = 3 * col1 + 0 * col2 + eps(0,1)):")
+print(coefficients2)

@@ -7,7 +7,6 @@ libs_path<-file.path("..","libs")
 source(file.path(libs_path,'Create_synthetic_datasets.R'))
 source(file.path(libs_path,'WeakHierNet_Class_corrected_unscaled.R'))
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
-source(file.path(libs_path,'hierarchy_tests.R'))
 
 
 
@@ -18,6 +17,25 @@ y<-data$y$obs
 beta_trues<-data$beta[-1,]  ##without intercept
 
 
+#### CONDTITION NUMBER
+# Perform singular value decomposition
+svd_decomposition <- svd(X)
+
+# Extract singular values
+singular_values <- svd_decomposition$d
+
+# Calculate the condition number
+condition_number <- max(singular_values) / min(singular_values)
+
+# Print the condition number
+print(condition_number)
+
+singular_values
+
+print(colSums(X))
+
+
+##########
 
 
 
@@ -79,7 +97,7 @@ y_all<-as.vector(y[,1])
 
 
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.3)
+lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.32)
 coefs<-coefficients(lasso_model)[-1]
 #coefs
 #sum(coefs==0)
@@ -89,10 +107,6 @@ coefs<-coefficients(lasso_model)[-1]
 all_beta_functions(beta_true, coefs[range_main])
 all_beta_functions(theta_true, coefs[range_theta])
 all_beta_functions(psi_true, coefs[range_psi])
-
-test_hierarchy_layer12(coefs[range_main], get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3) )
-test_hierarchy_layer23( get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3), get_psi_from_psi_vec3(coefs[range_psi],l1=l1,l2=l2,l3=l3) )
-
 
 sum(coefs==0)
 
@@ -105,6 +119,24 @@ theta_init<-get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3)
 
 print(theta_init)
 #theta_init<-matrix(0, ncol = dim(X_only_main)[2]
+
+
+
+###SVD LASSO
+all_vector<-coefs
+all_vector
+zero_indices <- which(all_vector == 0)
+print(zero_indices)
+X_svd<-X[,-zero_indices]
+svd_result <- svd(X_svd)
+singular_values <- svd_result$d
+
+# Plot the singular values
+plot(singular_values, type = "b", pch = 19, col = "blue",
+     main = "Singular Values of X",
+     xlab = "Index", ylab = "Singular Value",
+     ylim = c(0, max(singular_values)))
+
 
 
 
@@ -178,9 +210,6 @@ print("My library")
 all_beta_functions(beta_true, fitted$Beta_hat_plus-fitted$Beta_hat_minus)
 all_beta_functions(theta_true, fitted$vec_theta_hat)
 
-test_hierarchy_layer12(fitted$Beta_hat_plus-fitted$Beta_hat_minus, fitted$Theta_hat, strong = FALSE)
-
-
 sum(fitted$vec_theta_hat==0)+sum(fitted$Beta_hat_plus-fitted$Beta_hat_minus ==0)
 sum(beta_init_lasso_plus-beta_init_lasso_minus ==0) +sum(coefs[range_theta]==0)
 coefs[range_theta]==get_vec_theta_hat3(theta_init,l1=l1,l2=l2,l3=l3)
@@ -238,8 +267,8 @@ lasso_model_3way <- glmnet(X_3way, r_2way, alpha = 1, lambda=0.05)
 psi_init<-get_psi_from_psi_vec3(as.vector(coefficients(lasso_model_3way)[-1]),l1=l1,l2=l2,l3=l3) ## psi, get intercept out
 print(dim(psi_init))
 print(dim(X_3way))
-theta_bound<- (fitted$Theta_hat +t(fitted$Theta_hat))*5 ##bound
-lambda<-75
+theta_bound<- (fit$th +t(fit$th))*5 ##bound
+lambda<-70
 
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
 t<-5e-2
@@ -271,10 +300,28 @@ sum(fitted$Beta_hat_plus-fitted$Beta_hat_minus==0)+ sum(fitted$vec_theta_hat==0)
 
 ###RESULTS FOR PSI#####
 
-
 all_beta_functions(psi_true, c(fitted3$vec_psi_hat))
-test_hierarchy_layer23(fitted$Theta_hat, fitted3$psi_hat)
 all_beta_functions(psi_true,coefs[range_psi])
+
+
+############ SEE THE SVD###########################
+
+all_vector<-c(fitted$Beta_hat_plus-fitted$Beta_hat_minus, fitted$vec_theta_hat, fitted3$vec_psi_hat)
+zero_indices <- which(all_vector == 0)
+print(zero_indices)
+X_svd<-X[,-zero_indices]
+svd_result <- svd(X_svd)
+singular_values <- svd_result$d
+
+# Plot the singular values
+plot(singular_values, type = "b", pch = 19, col = "blue",
+     main = "Singular Values of X",
+     xlab = "Index", ylab = "Singular Value",
+     ylim = c(0, max(singular_values)))
+
+
+
+
 
 #######
 
@@ -284,9 +331,9 @@ fitted$vec_psi_hat
 
 ########################## ANALYSIS WITH SEQ1-2 and SEQ2-3 ###########################################################
 
-lasso_main <- glmnet(X, y_all, alpha = 1, lambda=0.3)
+lasso_main <- glmnet(X_only_main, y_all, alpha = 1, lambda=0.29)
 
-coefs_lasso_main<-coefficients(lasso_main)[2:(l1+l2+l3+1)] 
+coefs_lasso_main<-coefficients(lasso_main)[-1]
 all_beta_functions(beta_true, coefs_lasso_main)#lasso main
 
 beta_bound<-coefs_lasso_main*3
@@ -303,8 +350,6 @@ fit12<-seq12$fit( X=X_2way, theta_init=theta_init, y=r_main, lambda=lmd,beta_bou
 
 
 all_beta_functions(theta_true, fit12$vec_theta_hat)#lasso all
-
-test_hierarchy_layer12(beta_bound, fit12$theta_hat)
 
 print(fit12$vec_theta_hat)
 print(theta_true)
@@ -325,7 +370,7 @@ r_2way<-r_main-seq12$predict(fit12, X_2way )
 
 psi_init<-get_psi_from_psi_vec3(as.vector(coefficients(lasso_model)[-1]),l1=l1,l2=l2,l3=l3)*0 ## psi, get intercept out
 theta_bound<- (fit12$theta_hat +t(fit12$theta_hat))*5 ##bound
-lambda<-60
+lambda<-65
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
 t<-5e-2
 myWeakHierNet_seq3 <- WeakHierNet_seq3(X=X_3way, psi_init=psi_init, y=r_2way, theta_bound=theta_bound, lambda=lambda, t=t, tol=1e-8, max_iter=5000, eps=1e-8,
@@ -334,8 +379,6 @@ myWeakHierNet_seq3 <- WeakHierNet_seq3(X=X_3way, psi_init=psi_init, y=r_2way, th
 # Fit the model
 fitted33=myWeakHierNet_seq3$fit(X=X_3way, psi_init=psi_init, y=r_2way, theta_bound=theta_bound, lambda=lambda, t=t, tol=1e-8, max_iter=5000, 
                                eps=1e-8,l1=l1,l2=l2,l3=l3)
-
-test_hierarchy_layer23(theta_bound, fitted33$psi_hat)
 
 r2(r_2way,myWeakHierNet_seq3$predict(fitted33,X_3way))
 #print(fitted$vec_psi_hat)
@@ -361,5 +404,18 @@ sum(fit12$vec_theta_hat==0 )
 sum(fitted33$vec_psi_hat==0)
     
 
+all_vector<-c(coefs_lasso_main, fit12$vec_theta_hat, fitted33$vec_psi_hat)
+all_vector
+zero_indices <- which(all_vector == 0)
+print(zero_indices)
+X_svd<-X[,-zero_indices]
+svd_result <- svd(X_svd)
+singular_values <- svd_result$d
+
+# Plot the singular values
+plot(singular_values, type = "b", pch = 19, col = "blue",
+     main = "Singular Values of X",
+     xlab = "Index", ylab = "Singular Value",
+     ylim = c(0, max(singular_values)))
 
 

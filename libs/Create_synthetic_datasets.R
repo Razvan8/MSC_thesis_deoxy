@@ -589,6 +589,160 @@ create_hier_dataset_paper_many_main<-function(){
 
 
 
+set.seed(123)
+create_hier_dataset_paper_many_main_vary_interactions<-function(magnitude_scale=3){
+  set.seed(123)
+  x.3w <- dummy.matrix(NF=3, NL=c(7,6,5))
+  l1=6
+  l2=5
+  l3=4
+  col_mains<-colnames(x.3w)[c(1:(l1+l2+l3))]
+  #print(col_mains)
+  col_psi<-colnames(x.3w)[c ( (l1+l2+l3+ l1*l2+ l2*l3 + l1*l3 + 1): (l1+l2+l3+ l1*l2+ l2*l3+ +l1*l3+ l1*l2*l3) )]
+  col_theta_good<-c()
+  for (i in c(1:l1)) {
+    for (j in c(1:l2)) {
+      # Create the string and append to the vector
+      col_theta_good <- c(col_theta_good, paste0("A.", i, ":B.", j))
+    }
+    for(k in c(1:l3))
+    {col_theta_good <- c(col_theta_good, paste0("A.", i, ":C.", k))}
+  }
+  for (j in c(1:l2))
+  {for(k in c(1:l3))
+  {col_theta_good <- c(col_theta_good, paste0("B.", j, ":C.", k))}
+  }
+  #print(col_theta_good)
+  col_all_good=c(col_mains,col_theta_good,col_psi)
+  #print(col_all_good)
+  # Hierarchical Coefficients (2way)
+  p.3w <- ncol(x.3w)
+  n.3w <- p.3w + 1
+  beta.min <- 1
+  beta.max <- 10
+  beta.true <- data.frame(rep(0, n.3w))
+  rownames(beta.true) <- c("interc", colnames(x.3w))
+  colnames(beta.true) <- c("coeffs")
+  set.seed(123)
+  beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+  
+  
+  levs.true <- c("interc","A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
+                 "A.1:B.1","A.1:B.2","A.2:B.1","A.2:B.2",
+                 "A.1:C.1","A.1:C.2", "A.2:C.1","A.2:C.2",
+                 "B.1:C.1","B.3:C.3",
+                 "A.1:B.1:C.1","A.1:B.1:C.2","A.1:B.2:C.1", "A.1:B.2:C.2","A.2:B.1:C.1","A.2:B.1:C.2")
+  levs.high<-c("A.1:B.1","A.1:B.2","A.2:B.1","A.2:B.2",
+               "A.1:C.1","A.1:C.2", "A.2:C.1","A.2:C.2",
+               "B.1:C.1","B.3:C.3",
+               "A.1:B.1:C.1","A.1:B.1:C.2","A.1:B.2:C.1", "A.1:B.2:C.2","A.2:B.1:C.1","A.2:B.1:C.2")
+  
+  beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+  beta.true$coeffs[which(is.element(rownames(beta.true),levs.high))]<- magnitude_scale*beta.true$coeffs[which(is.element(rownames(beta.true),levs.high))]
+  beta.true_new <- beta.true[c("interc", col_all_good), , drop=FALSE ]
+  #print("new beta true")
+  #print(beta.true_new)
+  rownames(beta.true_new)<-c("interc", col_all_good)
+  #beta.true
+  #print(beta.true)
+  # Response vector (2way)
+  sigma.y <- 5
+  y.3w <- data.frame(row.names=rownames(x.3w))
+  set.seed(123)
+  y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
+  y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
+  #print(colnames(x.3w))
+  x.3w_new<-x.3w[,col_all_good ,drop=FALSE]
+  
+  if(all(rownames(beta.true_new)[-1]==colnames(x.3w_new)) ==TRUE)
+  {print("Data loaded properly")}
+  print("SNR:")
+  print(var(as.vector(y.3w$true))/ (sigma.y^2) )
+  #print("newcolnames")
+  #print(colnames(x.3w_new))
+  return(list('X'=as.matrix(x.3w_new), 'y'=y.3w, 'beta'=beta.true_new))
+}
+
+
+
+
+create_hier_dataset_paper_many_main_vary_interactions_2way<-function(magnitude_scale=3){
+  set.seed(123)
+  x.3w <- dummy.matrix(NF=3, NL=c(7,6,5))
+  l1=6
+  l2=5
+  l3=4
+  col_mains<-colnames(x.3w)[c(1:(l1+l2+l3))]
+  #print(col_mains)
+  col_psi<-colnames(x.3w)[c ( (l1+l2+l3+ l1*l2+ l2*l3 + l1*l3 + 1): (l1+l2+l3+ l1*l2+ l2*l3+ +l1*l3+ l1*l2*l3) )]
+  col_theta_good<-c()
+  for (i in c(1:l1)) {
+    for (j in c(1:l2)) {
+      # Create the string and append to the vector
+      col_theta_good <- c(col_theta_good, paste0("A.", i, ":B.", j))
+    }
+    for(k in c(1:l3))
+    {col_theta_good <- c(col_theta_good, paste0("A.", i, ":C.", k))}
+  }
+  for (j in c(1:l2))
+  {for(k in c(1:l3))
+  {col_theta_good <- c(col_theta_good, paste0("B.", j, ":C.", k))}
+  }
+  #print(col_theta_good)
+  col_all_good=c(col_mains,col_theta_good,col_psi)
+  #print(col_all_good)
+  # Hierarchical Coefficients (2way)
+  p.3w <- ncol(x.3w)
+  n.3w <- p.3w + 1
+  beta.min <- 1
+  beta.max <- 10
+  beta.true <- data.frame(rep(0, n.3w))
+  rownames(beta.true) <- c("interc", colnames(x.3w))
+  colnames(beta.true) <- c("coeffs")
+  set.seed(123)
+  beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+  
+  
+  levs.true <- c("interc","A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
+                 "A.1:B.1","A.1:B.2","A.2:B.1","A.2:B.2",
+                 "A.1:C.1","A.1:C.2", "A.2:C.1","A.2:C.2",
+                 "B.1:C.1","B.3:C.3")
+  levs.high<-c("A.1:B.1","A.1:B.2","A.2:B.1","A.2:B.2",
+               "A.1:C.1","A.1:C.2", "A.2:C.1","A.2:C.2",
+               "B.1:C.1","B.3:C.3")
+  
+  beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+  beta.true$coeffs[which(is.element(rownames(beta.true),levs.high))]<- magnitude_scale*beta.true$coeffs[which(is.element(rownames(beta.true),levs.high))]
+  beta.true_new <- beta.true[c("interc", col_all_good), , drop=FALSE ]
+  #print("new beta true")
+  #print(beta.true_new)
+  rownames(beta.true_new)<-c("interc", col_all_good)
+  #beta.true
+  #print(beta.true)
+  # Response vector (2way)
+  sigma.y <- 5
+  y.3w <- data.frame(row.names=rownames(x.3w))
+  set.seed(123)
+  y.3w$obs <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), 0, sigma.y)
+  y.3w$true <- beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1]
+  #print(colnames(x.3w))
+  x.3w_new<-x.3w[,col_all_good ,drop=FALSE]
+  
+  if(all(rownames(beta.true_new)[-1]==colnames(x.3w_new)) ==TRUE)
+  {print("Data loaded properly")}
+  print("SNR:")
+  print(var(as.vector(y.3w$true))/ (sigma.y^2) )
+  #print("newcolnames")
+  #print(colnames(x.3w_new))
+  return(list('X'=as.matrix(x.3w_new), 'y'=y.3w, 'beta'=beta.true_new))
+}
+
+
+
+
+
+
+
 
 
 

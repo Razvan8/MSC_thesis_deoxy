@@ -12,7 +12,7 @@ source(file.path(libs_path,'hierarchy_tests.R'))
 
 
 
-data=create_hier_dataset_paper_many_main()
+data=create_hier_dataset_paper_many_main_vary_interactions_2way()
 X<-data$X
 y<-data$y$obs
 beta_trues<-data$beta[-1,]  ##without intercept
@@ -192,7 +192,7 @@ beta_trues[range_theta]
 ###HIERNET LIBRARY##############################################
 #print("-----Hiernet library-----")
 
-fit=hierNet(X_only_main, y_all, lam=15, diagonal = FALSE, stand.main=FALSE,tol=1e-10)
+fit=hierNet(X_only_main, y_all, lam=20, diagonal = FALSE, stand.main=FALSE,tol=1e-10)
 #fit$th
 predicted_lib=predict(fit,X_only_main)
 print(r2(y_all, predicted_lib))

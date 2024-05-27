@@ -4,27 +4,29 @@
 library(glmnet)
 
 libs_path<-file.path("..","libs")
-source(file.path(libs_path,'Create_synthetic_datasets.R'))
+source(file.path(libs_path,'generate_dummy01.R'))
 source(file.path(libs_path,'WeakHierNet_Class_corrected_unscaled.R'))
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
 source(file.path(libs_path,'hierarchy_tests.R'))
-
-
-
-
-data=create_hier_dataset_paper_many_main()
-X<-data$X
-y<-data$y$obs
-beta_trues<-data$beta[-1,]  ##without intercept
-
-
-
+source(file.path(libs_path,'helper_functions.R'))
 
 
 
 l1=6
 l2=5
 l3=4
+
+
+data=generate_data01(nlevels=c(l1,l2,l3), error_sd=0, intercept=0)
+X<-as.matrix(data$X)
+y<-data$y
+beta_trues<-data$beta  ##without intercept
+
+mean(y)
+
+
+
+
 
 
 
@@ -42,6 +44,7 @@ theta_true<-beta_trues[range_theta]
 psi_true<-beta_trues[range_psi]
 
 
+
 zeros_beta_true<-sum(beta_true==0)
 zeros_theta_true<-sum(theta_true==0)
 zeros_psi_true<-sum(psi_true==0)
@@ -54,6 +57,17 @@ print(total_zeros)
 print(length(beta_trues))
 
 dim(X)
+# Perform singular value decomposition
+svd_decomposition <- svd(X)
+
+# Extract singular values
+singular_values <- svd_decomposition$d
+
+# Calculate the condition number
+condition_number <- max(singular_values) / min(singular_values)
+
+# Print the condition number
+print(condition_number)
 
 
 X_only_main<-X[,range_main]
@@ -79,8 +93,11 @@ y_all<-as.vector(y[,1])
 
 
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.3)
+lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.1, intercept = FALSE)
 coefs<-coefficients(lasso_model)[-1]
+#print(coefficients(lasso_model))
+
+
 #coefs
 #sum(coefs==0)
 
@@ -90,13 +107,24 @@ all_beta_functions(beta_true, coefs[range_main])
 all_beta_functions(theta_true, coefs[range_theta])
 all_beta_functions(psi_true, coefs[range_psi])
 
+
+#coefs[range_main]
+#coefs[range_theta]
+#beta_true
+
 test_hierarchy_layer12(coefs[range_main], get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3) )
 test_hierarchy_layer23( get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3), get_psi_from_psi_vec3(coefs[range_psi],l1=l1,l2=l2,l3=l3) )
 
 
 sum(coefs==0)
 
+
+
 r2(y_all, X%*%coefs + coefficients(lasso_model)[1])
+r2(y_all, X%*%beta_trues )
+
+print(mean(y_all))
+
 
 #####
 
@@ -129,8 +157,8 @@ coeffs_main<-coefs[range_main]
 
 ###### ANALYSIS WITH my library   #########################################
 
-lmd<-45
-t<-1e-5
+lmd<-10
+t<-1e-2
 
 beta_init_lasso_plus<- beta_init_lasso
 beta_init_lasso_plus[beta_init_lasso_plus<0]<-0
@@ -144,14 +172,20 @@ beta_init_lasso_plus[beta_init_lasso_plus<0]<-0
 
 
 source(file.path(libs_path,'WeakHierNet_Class_corrected_unscaled.R'))
-myWeakHierNet<-WeakHierNetUnscaled (X=X_only_main, Beta_plus_init=beta_init_lasso_plus, Beta_minus_init=beta_init_lasso_minus, 
-                                    Theta_init=theta_init, y=y_all, lambda=lmd, t=t, tol=1e-8, 
-                                    max_iter=10000, eps=1e-8, center = FALSE, standard_form=TRUE)  #Increase max iter if needed or decrease tol 
+myWeakHierNet<-WeakHierNetUnscaled (X=X_only_main, Beta_plus_init=beta_init_lasso_plus*0, Beta_minus_init=beta_init_lasso_minus*0, 
+                                    Theta_init=theta_init*0, y=y_all, lambda=lmd, t=t, tol=1e-7, 
+                                    max_iter=10000, eps=1e-8, center = FALSE, standard_form=FALSE)  #Increase max iter if needed or decrease tol 
 
 # Fit the model
-fitted=myWeakHierNet$fit(X=X_only_main,Beta_plus_init=beta_init_lasso_plus, Beta_minus_init = beta_init_lasso_minus, 
-                         Theta_init=theta_init, y=y_all, lambda=lmd, t=t, tol=1e-8, 
+fitted=myWeakHierNet$fit(X=X_only_main,Beta_plus_init=beta_init_lasso_plus*0, Beta_minus_init = beta_init_lasso_minus*0, 
+                         Theta_init=theta_init*0, y=y_all, lambda=lmd, t=t, tol=1e-7, 
                          max_iter=10000, eps=1e-8,l1=l1,l2=l2,l3=l3 )
+
+r2(y_all,myWeakHierNet$predict(fitted, X_only_main))
+
+print(fitted$Beta_hat_plus-fitted$Beta_hat_minus)
+beta_true
+
 
 print(fitted$Beta_hat_plus-fitted$Beta_hat_minus)
 
@@ -168,6 +202,7 @@ print(get_vec_theta_hat3(fit$th,l1=l1,l2=l2,l3=l3))
 #print(myWeakHierNet$R2_score(fitted,X_only_main,y_all))
 
 print(fitted$vec_theta_hat)
+theta_true
 print(beta_trues[range_theta])
 print(get_vec_theta_hat3(fit$th,l1=l1,l2=l2,l3=l3))
 
@@ -192,7 +227,7 @@ beta_trues[range_theta]
 ###HIERNET LIBRARY##############################################
 #print("-----Hiernet library-----")
 
-fit=hierNet(X_only_main, y_all, lam=15, diagonal = FALSE, stand.main=FALSE,tol=1e-10)
+fit=hierNet(X_only_main, y_all, lam=15, diagonal = FALSE, stand.main=FALSE,tol=1e-10, center = FALSE)
 #fit$th
 predicted_lib=predict(fit,X_only_main)
 print(r2(y_all, predicted_lib))
@@ -210,6 +245,7 @@ get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)
 print("hiernet")
 all_beta_functions(beta_true, c(fit$bp-fit$bn) )
 all_beta_functions(theta_true, get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3))
+
 #get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)[1:40]
 #theta_true[1:40]
 fit$th
@@ -284,9 +320,9 @@ fitted$vec_psi_hat
 
 ########################## ANALYSIS WITH SEQ1-2 and SEQ2-3 ###########################################################
 
-lasso_main <- glmnet(X, y_all, alpha = 1, lambda=0.3)
+lasso_main <- glmnet(X_only_main, y_all, alpha = 1, lambda=0.29)
 
-coefs_lasso_main<-coefficients(lasso_main)[2:(l1+l2+l3+1)] 
+coefs_lasso_main<-coefficients(lasso_main)[-1]
 all_beta_functions(beta_true, coefs_lasso_main)#lasso main
 
 beta_bound<-coefs_lasso_main*3
