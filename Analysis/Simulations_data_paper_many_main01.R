@@ -93,10 +93,10 @@ y_all<-as.vector(y[,1])
 
 
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.1, intercept = FALSE)
+lmd<-cv.glmnet(X, y_all, alpha = 1,standardize=FALSE)$lambda.min
+lmd
+lasso_model <- glmnet(X, y_all, alpha = 1, lambda=lmd, standardize = FALSE)
 coefs<-coefficients(lasso_model)[-1]
-#print(coefficients(lasso_model))
-
 
 #coefs
 #sum(coefs==0)
@@ -116,7 +116,7 @@ test_hierarchy_layer12(coefs[range_main], get_theta_hat_from_vec3(coefs[range_th
 test_hierarchy_layer23( get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3), get_psi_from_psi_vec3(coefs[range_psi],l1=l1,l2=l2,l3=l3) )
 
 
-sum(coefs==0)
+sum(coefs[c(range_main,range_theta)]==0)
 
 
 
@@ -157,7 +157,7 @@ coeffs_main<-coefs[range_main]
 
 ###### ANALYSIS WITH my library   #########################################
 
-lmd<-10
+lmd<-5
 t<-1e-2
 
 beta_init_lasso_plus<- beta_init_lasso
@@ -320,9 +320,10 @@ fitted$vec_psi_hat
 
 ########################## ANALYSIS WITH SEQ1-2 and SEQ2-3 ###########################################################
 
-lasso_main <- glmnet(X_only_main, y_all, alpha = 1, lambda=0.29)
+#lasso_main <- glmnet(X_only_main, y_all, alpha = 1, lambda=0.005)
 
-coefs_lasso_main<-coefficients(lasso_main)[-1]
+#coefs_lasso_main<-coefficients(lasso_main)[-1]
+coefs_lasso_main<-coefs[range_main]
 all_beta_functions(beta_true, coefs_lasso_main)#lasso main
 
 beta_bound<-coefs_lasso_main*3
@@ -330,8 +331,8 @@ theta_init<-get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3)*1
 
 print(beta_bound)
 
-lmd<-55
-t<-5e-3
+lmd<-30
+t<-5e-6
 r_main<-y_all- X_only_main%*%coefs_lasso_main -coefficients(lasso_main)[1]
 source(file.path(libs_path,'WeakHierNetSeq12_3way.R'))
 seq12<-WeakHierNet_seq_2way3(X=X_2way, theta_init=theta_init, y=r_main, beta_bound=beta_bound, lambda=lmd, t=t, tol=1e-8, max_iter=5000, eps=1e-8,l1=l1,l2=l2,l3=l3, scale=FALSE)
@@ -341,6 +342,8 @@ fit12<-seq12$fit( X=X_2way, theta_init=theta_init, y=r_main, lambda=lmd,beta_bou
 all_beta_functions(theta_true, fit12$vec_theta_hat)#lasso all
 
 test_hierarchy_layer12(beta_bound, fit12$theta_hat)
+
+sum(fit12$vec_theta_hat==0)
 
 print(fit12$vec_theta_hat)
 print(theta_true)
@@ -358,7 +361,6 @@ all_beta_functions(psi_true, coefs[range_psi])#lasso all
 
 ##PREPARE FOR SEQ23###############################################3
 r_2way<-r_main-seq12$predict(fit12, X_2way )
-
 psi_init<-get_psi_from_psi_vec3(as.vector(coefficients(lasso_model)[-1]),l1=l1,l2=l2,l3=l3)*0 ## psi, get intercept out
 theta_bound<- (fit12$theta_hat +t(fit12$theta_hat))*5 ##bound
 lambda<-60

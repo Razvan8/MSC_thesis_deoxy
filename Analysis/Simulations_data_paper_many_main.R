@@ -78,8 +78,10 @@ y_all<-as.vector(y[,1])
 #all_beta_functions(beta_true, coefs[range_main])
 
 
+lmd<-cv.glmnet(X, y_all, alpha = 1,standardize=TRUE)$lambda.min
+lmd
+lasso_model <- glmnet(X, y_all, alpha = 1, lambda=lmd, standardize = TRUE)
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.3)
 coefs<-coefficients(lasso_model)[-1]
 #coefs
 #sum(coefs==0)
@@ -192,7 +194,7 @@ beta_trues[range_theta]
 ###HIERNET LIBRARY##############################################
 #print("-----Hiernet library-----")
 
-fit=hierNet(X_only_main, y_all, lam=15, diagonal = FALSE, stand.main=FALSE,tol=1e-10)
+fit=hierNet(X_only_main, y_all, lam=25, diagonal = FALSE, stand.main=FALSE,tol=1e-10)
 #fit$th
 predicted_lib=predict(fit,X_only_main)
 print(r2(y_all, predicted_lib))
@@ -238,8 +240,9 @@ lasso_model_3way <- glmnet(X_3way, r_2way, alpha = 1, lambda=0.05)
 psi_init<-get_psi_from_psi_vec3(as.vector(coefficients(lasso_model_3way)[-1]),l1=l1,l2=l2,l3=l3) ## psi, get intercept out
 print(dim(psi_init))
 print(dim(X_3way))
-theta_bound<- (fitted$Theta_hat +t(fitted$Theta_hat))*5 ##bound
-lambda<-75
+#theta_bound<- (fitted$Theta_hat +t(fitted$Theta_hat))*5 ##bound
+theta_bound<-(fit$th +t(fit$th))*5 #bound library
+lambda<-55
 
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
 t<-5e-2
@@ -273,7 +276,7 @@ sum(fitted$Beta_hat_plus-fitted$Beta_hat_minus==0)+ sum(fitted$vec_theta_hat==0)
 
 
 all_beta_functions(psi_true, c(fitted3$vec_psi_hat))
-test_hierarchy_layer23(fitted$Theta_hat, fitted3$psi_hat)
+test_hierarchy_layer23(fit$th, fitted3$psi_hat)
 all_beta_functions(psi_true,coefs[range_psi])
 
 #######
@@ -284,12 +287,12 @@ fitted$vec_psi_hat
 
 ########################## ANALYSIS WITH SEQ1-2 and SEQ2-3 ###########################################################
 
-lasso_main <- glmnet(X, y_all, alpha = 1, lambda=0.3)
+lasso_main <- glmnet(X, y_all, alpha = 1, lambda=0.32)
 
 coefs_lasso_main<-coefficients(lasso_main)[2:(l1+l2+l3+1)] 
 all_beta_functions(beta_true, coefs_lasso_main)#lasso main
 
-beta_bound<-coefs_lasso_main*3
+beta_bound<-coefs_lasso_main*5
 theta_init<-get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3)*1
 
 print(beta_bound)
@@ -323,7 +326,7 @@ all_beta_functions(psi_true, coefs[range_psi])#lasso all
 ##PREPARE FOR SEQ23###############################################3
 r_2way<-r_main-seq12$predict(fit12, X_2way )
 
-psi_init<-get_psi_from_psi_vec3(as.vector(coefficients(lasso_model)[-1]),l1=l1,l2=l2,l3=l3)*0 ## psi, get intercept out
+psi_init<-get_psi_from_psi_vec3(as.vector(coefs[range_psi]),l1=l1,l2=l2,l3=l3)*0 ##
 theta_bound<- (fit12$theta_hat +t(fit12$theta_hat))*5 ##bound
 lambda<-60
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
