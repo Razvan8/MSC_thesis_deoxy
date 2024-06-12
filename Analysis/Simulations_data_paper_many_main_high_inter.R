@@ -80,7 +80,7 @@ y_all<-as.vector(y[,1])
 
 
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.32)
+lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.08, standardize = FALSE)
 coefs<-coefficients(lasso_model)[-1]
 #coefs
 #sum(coefs==0)

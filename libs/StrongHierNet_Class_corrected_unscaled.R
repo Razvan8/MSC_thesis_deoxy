@@ -448,7 +448,7 @@ HierNetUnscaled <- function(X, Beta_plus_init, Beta_minus_init, Theta_init, y, l
         ###CHECK HERE!!!
         result_ONEROW <-  ONEROW(delta * Beta_hat_plus[j] - t* t(X[, j]) %*% r_hat  , 
                                  delta * Beta_hat_minus[j] + t * t(X[, j]) %*%r_hat  ,
-                                 delta * Theta_hat[,j] - t* t(Z[, j_cols])%*%r_hat -add_strong[,j], lambda=lambda ,j=j,  t=t)
+                                 delta * Theta_hat[,j] - t* t(Z[, j_cols])%*%r_hat -t*add_strong[,j], lambda=lambda ,j=j,  t=t)
         #cat("add strong, ",add_strong)
         
         Beta_hat_plus[j] <- result_ONEROW$beta_hat_plus_j
@@ -496,7 +496,7 @@ HierNetUnscaled <- function(X, Beta_plus_init, Beta_minus_init, Theta_init, y, l
   for (it in 2:iter_strong+1) {
     #print("here")
     results<- fit(X=X, Beta_plus_init=Beta_plus_old, Beta_minus_init=Beta_minus_old, Theta_init=Theta_hat_old, y=y, lambda=lambda,
-                           t=t, tol=tol, max_iter=max_iter, eps=eps, Z=Z, center=center,l1=l1,l2=l2,l3=l3, rho=rho, add_strong = rho*(Theta_hat_old-Omega_hat) +U_hat, to_add_strong = TRUE  )
+                           t=t, tol=tol, max_iter=max_iter, eps=eps, Z=Z, center=center,l1=l1,l2=l2,l3=l3, add_strong = rho*(Theta_hat_old-Omega_hat) +U_hat, to_add_strong = TRUE  )
     Beta_plus_old<-results$Beta_hat_plus
     #cat("beta dif",Beta_minus_old-results$Beta_hat_minus)
     Beta_minus_old<-results$Beta_hat_minus

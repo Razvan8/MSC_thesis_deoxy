@@ -525,7 +525,7 @@ HierNet_seq_2way3 <- function(X, theta_init, y, beta_bound, lambda, t=1, tol=1e-
          
         Xj<-get_cols_Xj3(X=X,j=j,l1=l1,l2=l2,l3=l3)
         #cat("beta bound j", beta_bound[j])
-        Theta_hat[,j] <-  ONEROW_SEQ12(delta * Theta_hat[,j] - t* t(Xj)%*%r_hat -add_strong[,j], lambda=lambda, t=t, beta_bound_j = beta_bound[j],j=j) 
+        Theta_hat[,j] <-  ONEROW_SEQ12(delta * Theta_hat[,j] - t* t(Xj)%*%r_hat -t*add_strong[,j], lambda=lambda, t=t, beta_bound_j = beta_bound[j],j=j) 
       }
       if (it>=3)
       {if (mean((r_hat_old- r_hat)^2) <=tol) #TAKE CARE RHAT IS VECTOR  !!! Sum because already scaled !!!!!!

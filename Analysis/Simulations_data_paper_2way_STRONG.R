@@ -8,6 +8,7 @@ source(file.path(libs_path,'Create_synthetic_datasets.R'))
 source(file.path(libs_path,'WeakHierNet_Class_corrected_unscaled.R'))
 source(file.path(libs_path,'WeakHierNetSeq23_3way.R'))
 source(file.path(libs_path,'hierarchy_tests.R'))
+source(file.path(libs_path,'recover_parameters.R'))
 
 
 
@@ -40,6 +41,9 @@ colnames(X)[range_main]
 beta_true<-beta_trues[range_main]
 theta_true<-beta_trues[range_theta]
 psi_true<-beta_trues[range_psi]
+
+beta_true_all<-get_all_beta(beta_true,l1=l1,l2=l2, l3=l3)
+theta_true_all<-get_all_theta(get_theta_hat_from_vec3 (theta_true, l1=l1, l2=l2, l3=l3), l1=l1, l2=l2, l3=l3)
 
 
 zeros_beta_true<-sum(beta_true==0)
@@ -77,9 +81,16 @@ y_all<-as.vector(y[,1])
 
 #all_beta_functions(beta_true, coefs[range_main])
 
+cv_fit <- cv.glmnet(X[,c(range_main, range_theta)], y_all, alpha = 1, standardize=FALSE) # alpha = 1 for LASSO 
+
+# Plot the cross-validation results
+#plot(cv_fit)
+
+# Extract the best lambda value (lambda that minimizes the cross-validation error)
+best_lambda <- cv_fit$lambda.min
 
 
-lasso_model <- glmnet(X, y_all, alpha = 1, lambda=0.3)
+lasso_model <- glmnet(X[,c(range_main, range_theta)], y_all, alpha = 1, lambda=best_lambda, standardize = FALSE)
 coefs<-coefficients(lasso_model)[-1]
 #coefs
 #sum(coefs==0)
@@ -90,7 +101,7 @@ all_beta_functions(beta_true, coefs[range_main])
 all_beta_functions(theta_true, coefs[range_theta])
 all_beta_functions(psi_true, coefs[range_psi])
 
-test_hierarchy_layer12(coefs[range_main], get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3) )
+test_hierarchy_layer12(coefs[range_main], get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3), strong=TRUE )
 test_hierarchy_layer23( get_theta_hat_from_vec3(coefs[range_theta],l1=l1,l2=l2,l3=l3), get_psi_from_psi_vec3(coefs[range_psi],l1=l1,l2=l2,l3=l3) )
 
 
@@ -129,7 +140,7 @@ coeffs_main<-coefs[range_main]
 
 ###### ANALYSIS WITH my library   #########################################
 
-lmd<-30
+lmd<-15
 t<-1e-3
 
 beta_init_lasso_plus<- beta_init_lasso
@@ -155,7 +166,7 @@ fitted=myWeakHierNet$fit(X=X_only_main,Beta_plus_init=beta_init_lasso_plus, Beta
 
 fitted_strong<- myWeakHierNet$fitstrong(X=X_only_main,Beta_plus_init=fitted$Beta_hat_plus, Beta_minus_init = fitted$Beta_hat_minus, 
                                   Theta_init=fitted$Theta_hat, y=y_all, lambda=lmd, t=1e-4, tol=1e-5, 
-                                  max_iter=10000, eps=1e-8,l1=l1,l2=l2,l3=l3, rho=8e-3, iter_strong=1000)
+                                  max_iter=10000, eps=1e-8,l1=l1,l2=l2,l3=l3, rho=5e1, iter_strong=1000)
 
 
 
@@ -191,11 +202,20 @@ print(fit$th)
 print("My library")
 all_beta_functions(beta_true, fitted$Beta_hat_plus-fitted$Beta_hat_minus)
 all_beta_functions(theta_true, fitted$vec_theta_hat)
-all_beta_functions(beta_true, fitted_strong$Beta_hat_plus-fitted_strong$Beta_hat_minus)
-all_beta_functions(theta_true, get_vec_theta_hat3(fitted_strong$Theta_hat, l1=l1, l2=l2, l3=l3))
+all_beta_functions(beta_true_all, all_fit_beta)
+all_beta_functions(get_vec_theta_hat3(theta_true_all, l1=l1+1, l2=l2+1, l3=l3+1), all_fit_theta)
+
+
+all_fit_beta<-get_all_beta(c(fitted_strong$Beta_hat_plus-fitted_strong$Beta_hat_minus), l1=l1,l2=l2,l3=l3 )
+all_fit_theta<-get_vec_theta_hat3(get_all_theta(fitted_strong$Theta_hat, l1=l1, l2=l2, l3=l3), l1=l1+1, l2=l2+1, l3=l3+1)
+
+
 
 
 test_hierarchy_layer12(fitted$Beta_hat_plus-fitted$Beta_hat_minus, fitted$Theta_hat, strong = TRUE)
+test_hierarchy_layer12(fitted_strong$Beta_hat_plus-fitted_strong$Beta_hat_minus, fitted_strong$Theta_hat, strong = TRUE)
+
+
 
 
 sum(fitted$vec_theta_hat==0)+sum(fitted$Beta_hat_plus-fitted$Beta_hat_minus ==0)
@@ -230,6 +250,8 @@ get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)
 print("hiernet")
 all_beta_functions(beta_true, c(fit$bp-fit$bn) )
 all_beta_functions(theta_true, get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3))
+
+
 #get_vec_theta_hat3(fit$th,l1=l1, l2=l2, l3=l3)[1:40]
 #theta_true[1:40]
 fit$th
