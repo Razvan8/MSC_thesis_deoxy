@@ -1,5 +1,8 @@
 library(glmnet)
 source("Create_synthetic_datasets.R")
+library(lars)
+library(polynom)
+
 
 
 ## FUNCTIONS USED FOR THE CLASS
@@ -40,7 +43,7 @@ Soft_thresholding <- function(c, lambda) {
 }
 
 
-lasso_1d_closed_form<-function(X, y, lambda, w=1, scaled=TRUE)
+lasso_1d_closed_form<-function(X, y, lambda, w=1, scaled=FALSE)
 { xty<-sum(X*y)
   xtx<-sum(X*X)
   if (xtx ==0)
@@ -48,16 +51,137 @@ lasso_1d_closed_form<-function(X, y, lambda, w=1, scaled=TRUE)
   c<-lambda*w
   if (scaled ==TRUE)
   {c<-c*length(X)}
-  cat("lmd:", lambda,  "w: ", w, " xtx: ", xtx, " xty: ", xty, " c: ", c )
+  #cat(" xtx: ", xtx, " xty: ", xty, " c: ", c )
+  #cat(" (xty-c) / xtx:", (xty-c)/xtx, xty/xtx -c/xtx)
   
-  result<-Soft_thresholding(xty/xtx, c/(2*xtx))
+  result<-Soft_thresholding(xty, c/2)/xtx
   return(result)
 }
 
+lasso_R<-function(X,y,lambda,w)
+{lmd<-lambda*w
+zeros<-X*0+rnorm(length(X), 1, 0)
+X<-cbind(X,zeros)
+final_model <- glmnet(X, y, alpha = 1, lambda = lmd, intercept = FALSE, standardize = FALSE)
+print( coef(final_model))
+coefficients <- coef(final_model)[1]
+return(coefficients)}
+
+# 2,2 4.4
+# conj 3.03 5.2
+#lass 2.81
+
+##poly_minimum for 4th degree with sign
 
 
-beta_hat<-lasso_1d_closed_form(X,y,lambda=0.1)
-beta_hat
+
+poly_min_sign<-function(coefs, positive) #coefs should be from c0 to c4
+{assert(length(coefs)==5, "A 4th deg poly should have 5 coefs")
+  
+
+  c4<-coefs[5]
+  c3<-coefs[4]
+  c2<-coefs[3]
+  c1<-coefs[2]
+  c0<-coefs[1]
+  coefs<-array(coefs)
+  poly <- function(x) {
+    x_vect<-c(1,x,x^2,x^3,x^4)
+    return(sum(x_vect*coefs))
+  }
+  d3<-4*c4
+  d2<-3*c3
+  d1<-2*c2
+  d0<-c1
+  coefs_deriv<-c(d0,d1,d2,d3)
+  roots_deriv <- polyroot(coefs_deriv)
+  real_roots<-roots_deriv[abs(Im(roots_deriv))<=1e-14]
+  real_roots<-Re(real_roots)
+  if (positive == TRUE)
+  {if(length(real_roots[real_roots>0])==0)
+  {real_roots<-list(1e-10)} #add one as backup if it does not find a root
+    real_roots<-real_roots[real_roots>0]}
+  if(positive == FALSE)
+  {if(length(real_roots[real_roots<0])==0)
+  {real_roots<-list(-1e-10)} # add one as backup if it does not find a root
+    real_roots<-real_roots[real_roots<0]}
+  
+  
+  # Evaluate the polynomial at the real roots
+  values <- sapply(real_roots, function(x) poly(Re(x)))
+  print(values)
+  # Find the minimum value and the corresponding root
+  min_value <- min(values)
+  min_root <- real_roots[which.min(values)]
+  
+  # Print the results
+  print("root for min:")
+  print(min_root)  # The x-value at which the minimum occurs
+  print("Min value of function")
+  print(min_value)  # The minimum value of the polynomial
+  
+  return(c(min_root, min_value))
+  
+  
+  }
+
+poly_min_sign(c(4,4,-3,-2,1), positive = FALSE)
+
+
+
+poly_lasso_min<-function(coefs, lambda){ #finds the min for a< a=0, a>0 gets the min out of all
+  ##long term take care if 2 with same min smart decision
+  
+  coefs_without_lambda<-coefs
+  
+  #case 1 sign positive
+  coefs_poz<-coefs_without_lambda
+  coefs_poz[2]<-coefs_poz[2]+lambda
+  poz<-poly_min_sign(coefs=coefs_poz, positive = TRUE)
+  x_min_poz<-poz[1]
+  val_min_poz<-poz[2]
+  
+  print("starts neg")
+
+  #case 2 sign negative
+  coefs_neg<-coefs_without_lambda
+  coefs_neg[2]<-coefs_neg[2]-lambda
+  neg<-poly_min_sign(coefs=coefs_neg, positive = FALSE)
+  x_min_neg<-neg[1]
+  val_min_neg<-neg[2]
+  
+  print("start 0")
+  
+  #case 3 sign is 0
+  x_zeros<-0
+  val_min_zeros<-coefs[1]
+  
+  all_mins<-c(val_min_neg, val_min_poz, val_min_zeros)
+  all_x_min<-c(x_min_neg, x_min_poz, x_zeros)#
+  idx_min<-which.min(all_mins)
+  x_min<-all_x_min[idx_min]
+  print("RESULTS x_min, f min: ")
+  print(x_min)
+  print(all_mins[idx_min])
+  return(x_min)
+  
+}
+
+
+poly_lasso_min(c(1/16,1/2,3/2,2,1), lambda=1e-0)
+
+
+get_coef_from_xyz<-function(x,y,z)
+{c4<-sum(z*z)
+ c3<-sum(2*sum(x*z))
+ c2<-sum(x*x)-2*sum(y*z)
+ c1<--2*sum(x*y)
+ c0<-sum(y*y)
+ return(c(c0,c1,c2,c3,c4))}
+
+
+#get_coef_from_xyz(x=array(0, dim=10), y=array(1, dim=10), z=c(1,2,1,2,1,2,1,2,1,2))
+
 ##position in matrix form to position in vector form 2way
 matrix_position_to_vector_index_2way<- function(position_tuple, l1,l2,l3) ## takes into account / works only for possible combinations!!!!
 { x<-position_tuple[1]
@@ -188,10 +312,7 @@ return(beta_vec2way)
 }
 
 
-get_beta_vec_3way<-function(beta_2way,l1,l2,l3, delta, only_beta=FALSE) ##
-# beta_2way should be final beta_2way; 
-#only_beta means product of beta_2ways (gamma included) without delta
-  
+get_beta_vec_3way<-function(beta_2way,l1,l2,l3, delta, only_beta=FALSE) ## # beta_2way should be final beta_2way; #only_beta means product of beta_2ways (gamma included) without delta
 {beta_vec3way<- array(0, dim = l1*l2*l3 )
 counter<-1
 
@@ -215,7 +336,6 @@ assert(counter==l1*l2*l3+1)
 return(beta_vec3way)
 
 }
-
 
 
 
@@ -254,7 +374,7 @@ g_normal<-function(X, beta, gamma_vec, delta_vec,l1,l2,l3, already_multiplied=TR
  result<-mains_contribution(X=X, beta_main = beta_main, l1=l1, l2=l2, l3=l3)+ 
          two_ways_contribution(X=X, gamma_vec=gamma_vec, beta_vec_2way=beta_2way,l1=l1, l2=l2, l3=l3, already_multiplied = FALSE)+
          three_ways_contribution(X=X, delta_vec = delta_vec, beta_vec_3way = beta_3way,l1=l1, l2=l2, l3=l3, already_multiplied = FALSE)
- cat("g:", result[1:10])
+ #cat("g:", result[1:10])
  return(result)
 }
 
@@ -272,21 +392,26 @@ get_penalty<-function(vector, weights, lambda, already_weighted=TRUE){
 
 ##loss function normal- Q
 Q_normal<-function(X,y, beta, gamma_vec, delta_vec, lambda_beta, lambda_gamma, lambda_delta, w_beta, w_gamma, w_delta,l1,l2,l3,
-                   already_multiplied=TRUE)
+                   already_multiplied=TRUE, scaled=FALSE)
 { if (length(beta)== l1 +l2+l3)
-{print("Beta was given only main and computed for the rest")
+{#print("Beta was given only main and computed for the rest")
+  already_multiplied = TRUE
   beta_2way<-get_beta_vec_2way(beta = beta, l1=l1, l2=l2, l3=l3, gamma= gamma_vec, only_beta = FALSE )
   beta_3way<-get_beta_vec_3way(beta = beta_2way, l1=l1, l2=l2, l3=l3, delta = delta_vec, only_beta = FALSE)
   beta<-c(beta, beta_2way,beta_3way)}
+  #should be before making it 1
+  penalty_beta<-get_penalty(vector=beta[unlist(get_ranges(l1,l2,l3)[1])], weights=w_beta, lambda = lambda_beta  )
+  penalty_gamma<-get_penalty(vector=beta[unlist(get_ranges(l1,l2,l3)[2])]*gamma_vec, weights=w_gamma, lambda = lambda_gamma  )
+  penalty_delta<-get_penalty(vector=beta[unlist(get_ranges(l1,l2,l3)[3])]*delta_vec, weights=w_delta, lambda = lambda_delta  )
+  
   if (already_multiplied ==TRUE)
 {gamma_vec<-array(1, dim=length(gamma_vec))
 delta_vec<-array(1, dim=length(delta_vec))}
  error<-sum((y-g_normal(X=X, beta=beta, gamma_vec = gamma_vec, delta_vec = delta_vec, l1=l1, l2=l2, l3=l3, already_multiplied = already_multiplied))**2)
- penalty_beta<-get_penalty(vector=beta[unlist(get_ranges(l1,l2,l3)[1])], weights=w_beta, lambda = lambda_beta  )
- penalty_gamma<-get_penalty(vector=beta[unlist(get_ranges(l1,l2,l3)[2])]*gamma_vec, weights=w_gamma, lambda = lambda_gamma  )
- penalty_delta<-get_penalty(vector=beta[unlist(get_ranges(l1,l2,l3)[3])]*delta_vec, weights=w_delta, lambda = lambda_delta  )
+  if(scaled==TRUE)
+   {error<-error/(2*dim(X)[1])}
  loss<- error+penalty_beta+penalty_gamma+penalty_delta
- cat("err,", error, '  ',penalty_beta,' ',penalty_gamma,' ',penalty_delta )
+ #cat("err,", error, '  ',penalty_beta,' ',penalty_gamma,' ',penalty_delta )
  return(loss)
 }
 
@@ -421,7 +546,7 @@ for(i in range1){
     y_tilde<-y - mains_contribution(X=X, beta_main=beta_hat, l1=l1, l2=l2, l3=l3) - X_2way_kept%*%beta_2way_kept -X_3way_kept%*%beta_3way_kept
     #print(y_tilde)
     three_ways=0
-    print("ok")
+    #print("ok")
     for (k in range3) #compute 3 ways contrib
     {three_ways<-three_ways+ X_3way[,table_position_to_vector_index3(c(i,j,k),l1=l1, l2=l2, l3=l3)]*((beta_hat[i]*beta_hat[j]*beta_hat[k])^2)*
                              gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2 ,l3=l3)] *  
@@ -429,20 +554,38 @@ for(i in range1){
                              delta_hat[table_position_to_vector_index3(c(i,j,k), l1=l1, l2=l2, l3=l3)]
     
     }
-    print("ok1")
+ 
     X_tilde<-X_2way[,discard_2way]*beta_hat[i]*beta_hat[j]+  three_ways
-    print("ok2")
+    
+    Q_old <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                  lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
+                  w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+    
+    
     gamma_hat[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3)]<-lasso_1d_closed_form(X=X_tilde, y= y_tilde,
                                        lambda=lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3) ] )
+    #gamma_hat[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3)]<-lasso_R(X=X_tilde, y=y_tilde, lambda=lambda_gamma, w=1)
+    
     print("lasso used")
+    
+   
+    
+    
     beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
     beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+    
+    Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+             lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
+             w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3,already_multiplied=TRUE)
+    
+    #if (Q_new-Q_old >=0)
+    cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
     
     
   }
 }
-print(gamma_hat)   
- print('ababababbabababaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')
+  
+ print('start range1-3')
  for(i in range1){
    for (k in range3){
      
@@ -481,19 +624,32 @@ print(gamma_hat)
      }
      X_tilde<-X_2way[,discard_2way]*beta_hat[i]*beta_hat[k]+ three_ways
      
+     Q_old <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                       lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
+                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+     
+     
      lasso_1d_closed_form(X=X_tilde, y= y_tilde, lambda=lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)] )
      #print(lambda_gamma)
      gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)]<-lasso_1d_closed_form(X=X_tilde, y= y_tilde, lambda=lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3) ] )
+     #gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)]<-lasso_R(X=X_tilde, y=y_tilde, lambda=lambda_gamma, w=1)
      print("lasso used 2")
      beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+     
+     Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                       lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
+                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+     
+     #if (Q_new-Q_old >=0)
+     cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
      
      
    }
  }
  
- print(gamma_hat)
- print("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+
+ print("range2-3")
  
  for(j in range2){
    for (k in range3){
@@ -513,7 +669,7 @@ print(gamma_hat)
      
      discard_3way<- get_positions_3way(ls_tuples_discard_3way, l1=l1, l2=l2, l3=l3) #positions 3 way in vector form
      
-     print("ls positions 3 way: ")
+     #print("ls positions 3 way: ")
      #print(discard_3way)
      X_2way_kept<-X_2way[,-discard_2way]
      X_3way_kept<-X_3way[, -discard_3way]
@@ -532,11 +688,25 @@ print(gamma_hat)
      
      }
      X_tilde<-X_2way[,discard_2way]*beta_hat[j]*beta_hat[k]+ three_ways
-     gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)]<- lasso_1d_closed_form(X=X_tilde, y= y_tilde,
+     
+     Q_old <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                       lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
+                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+     
+     
+     gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)]<- lasso_1d_closed_form(X=X_tilde, y= y_tilde,
                                                                                                          lambda= lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3) ] )
+     #gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)]<-lasso_R(X=X_tilde, y=y_tilde, lambda=lambda_gamma, w=1)
      print("Lasso used 3")
      beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+     
+     Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                       lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
+                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+     #if (Q_new-Q_old >=0)
+     cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+     
      
    }
  }
@@ -572,21 +742,20 @@ gamma_true[is.nan(gamma_true)]<-0
 delta_true<-beta_3way/beta_3way_without_gamma
 delta_true[is.nan(delta_true)]<-0
 
+delta_hat<-delta_true
 
-
-gamma_hat<-gamma_true+rnorm(length(gamma_hat), 0,0.001)
+gamma_hat<-gamma_true+rnorm(length(gamma_hat), 0,0.1)
 gamma_hat[1]<-30
 gamma_hat
-gamma_pred <- update_gamma(X=X, y=y,beta_hat=beta_main, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_gamma=lambda_gamma*10, l1=l1, l2=l2, l3=l3, w=1) 
+gamma_pred <- update_gamma(X=X, y=y,beta_hat=beta_main, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_gamma=lambda_gamma*1e6,  l1=l1, l2=l2, l3=l3, w=1) 
 gamma_pred
 
-  
+sum(gamma_pred==0)  
+sum(abs(gamma_pred))
 
 
-
-
-
-
+sum(abs(gamma_true))
+sum(gamma_true==0)
 
 
 
@@ -641,6 +810,7 @@ g_normal(xxx.all,beta.all, gamma_vec_2way, delta_vec_3way, l1,l2,l3, already_mul
 
 Q_normal(X=xxx.all,y=y, beta=beta.all, gamma_vec = gamma_vec_2way, delta_vec = delta_vec_3way, lambda_beta = lambda_beta, lambda_gamma = lambda_gamma,
          lambda_delta = lambda_delta, w_beta = w_beta, w_gamma = w_gamma, w_delta = w_delta,l1=l1,l2=l2,l3=l3, already_multiplied = TRUE) ##inlocuieste si pleaca cu beta simplu
+
 
 
 

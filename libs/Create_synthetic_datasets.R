@@ -1,12 +1,12 @@
 # Clear all
-rm(list=ls())
-gc()
-try(dev.off(dev.list()["RStudioGD"]),silent=TRUE)
-try(dev.off(),silent=TRUE)
-cat("\014")
+#rm(list=ls())
+#gc()
+#try(dev.off(dev.list()["RStudioGD"]),silent=TRUE)
+#try(dev.off(),silent=TRUE)
+#cat("\014")
 
 # Memory
-memory.limit(64000)
+#memory.limit(64000)
 
 set.seed(123)
 
