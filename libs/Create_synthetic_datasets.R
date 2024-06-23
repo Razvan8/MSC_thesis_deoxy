@@ -742,9 +742,9 @@ create_hier_dataset_paper_many_main_vary_interactions_2way<-function(magnitude_s
 set.seed(455)
 create_basic_dataset<-function(){
   set.seed(455)
-  x.3w <- dummy.matrix(NF=3, NL=c(10,10,5))
-  l1=9
-  l2=9
+  x.3w <- dummy.matrix(NF=3, NL=c(9,9,5))
+  l1=8
+  l2=8
   l3=4
   col_mains<-colnames(x.3w)[c(1:(l1+l2+l3))]
   #print(col_mains)
