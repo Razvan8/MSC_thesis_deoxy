@@ -2,10 +2,27 @@ library(glmnet)
 source("Create_synthetic_datasets.R")
 library(lars)
 library(polynom)
+source("helper_functions.R")
 
 
 
 ## FUNCTIONS USED FOR THE CLASS
+
+r2 <- function(actual, predicted) {
+  # Calculate the mean of the actual values
+  mean_actual <- mean(actual)
+  
+  # Calculate the total sum of squares
+  total_sum_squares <- sum((actual - mean_actual)^2)
+  
+  # Calculate the residual sum of squares
+  residual_sum_squares <- sum((actual - predicted)^2)
+  
+  # Calculate R-squared
+  r_squared <- 1 - (residual_sum_squares / total_sum_squares)
+  
+  return(r_squared)
+}
 
 assert <- function(condition, message) {
   if (!condition) stop(message)
@@ -63,7 +80,7 @@ lasso_R<-function(X,y,lambda,w)
 zeros<-X*0+rnorm(length(X), 1, 0)
 X<-cbind(X,zeros)
 final_model <- glmnet(X, y, alpha = 1, lambda = lmd, intercept = FALSE, standardize = FALSE)
-print( coef(final_model))
+#print( coef(final_model))
 coefficients <- coef(final_model)[1]
 return(coefficients)}
 
@@ -426,7 +443,7 @@ delta_vec<-array(1, dim=length(delta_vec))}
 
 ###RELATIVE DIFFERENCE
 
-compute_relative_dif<-function(Q_old, Q_new)
+compute_rel_dif<-function(Q_old, Q_new)
 {rel_dif<- abs(Q_old-Q_new)/abs(Q_old)
 return(rel_dif)}
 
@@ -445,7 +462,7 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  X_tilde<-matrix(rep(beta_3way, each = nrow(X_3way)), nrow = nrow(X_3way))*X_3way
  lambda_delta<-lambda_delta/(2*nrow(X)) ##scale lambda because in lasso we have 1/(2n)* loss
  lasso_model <- glmnet(X_tilde, y_tilde, alpha = 1, lambda = lambda_delta, intercept = FALSE, standardize = FALSE)
- print(lambda_delta)
+ #print(lambda_delta)
 
  lasso_coef <- coef(lasso_model)
  delta_hat<- lasso_coef[-1]
@@ -586,7 +603,7 @@ for(i in range1){
                                        lambda=lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3) ] )
     #gamma_hat[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3)]<-lasso_R(X=X_tilde, y=y_tilde, lambda=lambda_gamma, w=1)
     
-    print("lasso used")
+
     
    
     
@@ -599,13 +616,15 @@ for(i in range1){
              w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3,already_multiplied=TRUE)
     
     #if (Q_new-Q_old >=0)
-    cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+    #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+    if (Q_new-Q_old >= Q_old/100)
+    {print("There might be numerical instability in gamma.")}
     
     
   }
 }
   
- print('start range1-3')
+
  for(i in range1){
    for (k in range3){
      
@@ -653,7 +672,7 @@ for(i in range1){
      #print(lambda_gamma)
      gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)]<-lasso_1d_closed_form(X=X_tilde, y= y_tilde, lambda=lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3) ] )
      #gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)]<-lasso_R(X=X_tilde, y=y_tilde, lambda=lambda_gamma, w=1)
-     print("lasso used 2")
+
      beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
      
@@ -662,14 +681,16 @@ for(i in range1){
                        w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
      
      #if (Q_new-Q_old >=0)
-     cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+     #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+     if (Q_new-Q_old >= Q_old/100)
+     {print("There might be numerical instability in gamma.")}
      
      
    }
  }
  
 
- print("range2-3")
+
  
  for(j in range2){
    for (k in range3){
@@ -716,8 +737,7 @@ for(i in range1){
      
      gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)]<- lasso_1d_closed_form(X=X_tilde, y= y_tilde,
                                                                                                          lambda= lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3) ] )
-     #gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)]<-lasso_R(X=X_tilde, y=y_tilde, lambda=lambda_gamma, w=1)
-     print("Lasso used 3")
+
      beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
      
@@ -725,7 +745,9 @@ for(i in range1){
                        lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
                        w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
      #if (Q_new-Q_old >=0)
-     cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+     #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+     if (Q_new-Q_old >= Q_old/100)
+     {print("There might be numerical instability in gamma.")}
      
      
    }
@@ -907,15 +929,15 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
                       lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
     if (Q_new-Q_old >= Q_old/100)
-    {print("There might be numerical instability")}
+    {print("There might be numerical instability in beta")}
 
-    cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+    #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
     
   }
   
 
   
-  print("start j")
+  #print("start j")
   
   ##CASE 2 Iterate for j
   for (j in range2) {
@@ -998,10 +1020,10 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
                       lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
     if (Q_new-Q_old >= Q_old/100)
-    {print("There might be numerical instability")}
+    {print("There might be numerical instability in beta.")}
     
-    cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new) }
-    
+    #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new) 
+  }
     
     
     
@@ -1078,9 +1100,10 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
                         lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                         w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
       if (Q_new-Q_old >= Q_old/100)
-      {print("There might be numerical instability")}
+      {print("There might be numerical instability in beta.")}
       
-      cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)}
+      #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
+    }
 
   #print(beta_hat)
   return(beta_hat)
@@ -1142,54 +1165,6 @@ sum(gamma_true==0)
 
 
 
-#############################################################################
-l1=2
-l2=1
-l3=1
-gamma_vec_2way<-array(c(1,1,-1,-1,-1),dim=l1*(l2+l3)+l2*l3)
-delta_vec_3way<-array(c(1,-1),dim=l1*l2*l3)
-
-X=matrix(1, nrow=4, ncol=4)
-X[2,4]=0
-X[2,3]=-1
-beta=array(c(1,1,1,2))
-beta_vec_2way<-get_beta_vec_2way(beta=beta,l1=l1,l2=l2,l3=l3, gamma=gamma_vec_2way, only_beta = FALSE)
-beta_vec_3way<-get_beta_vec_3way(beta_vec_2way,l1,l2,l3, delta=delta_vec_3way, only_beta = FALSE)
-xx.all<-get_xx.all(X,l1,l2,l3)
-xxx.all<-get_xxx.all(X,l1,l2,l3)
-lambda_beta<-2
-lambda_gamma<-3
-lambda_delta<-4
-w_beta<-array(2, dim=length(beta))
-w_beta[3]=1
-w_gamma<-array(3, dim=length(gamma_vec_2way))
-w_gamma[1]=0
-w_delta<-array(3, dim=length(delta_vec_3way))
-w_delta[2]=0
-y=matrix(array(c(-1,-1,0,1)), ncol = 1)
-
-
-beta.all<-array(c(beta, beta_vec_2way, beta_vec_3way))
-
-g_normal(xxx.all,beta.all, gamma_vec_2way, delta_vec_3way, l1,l2,l3, already_multiplied = TRUE)
-#get_penalty(beta, weights=c(1,2,3,4), lambda=0.5)
-
-Q_normal(X=xxx.all,y=y, beta=beta.all, gamma_vec = gamma_vec_2way, delta_vec = delta_vec_3way, lambda_beta = lambda_beta, lambda_gamma = lambda_gamma,
-         lambda_delta = lambda_delta, w_beta = w_beta, w_gamma = w_gamma, w_delta = w_delta,l1=l1,l2=l2,l3=l3, already_multiplied = TRUE) ##inlocuieste si pleaca cu beta simplu
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ## SHIM CLASS for 3 way
 SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scale=FALSE)
   
@@ -1211,7 +1186,7 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
   
   
   
-  fit<-function(X, y, lambda_beta, lambda_gamma, lambda_delta, w_beta=NULL, w_gamma=NULL, w_delta=NULL,  tol=1e-6, max_iter=50, compute_Q=Q_normal)
+  fit<-function(X, y, lambda_beta, lambda_gamma, lambda_delta, w_beta=NULL, w_gamma=NULL, w_delta=NULL,  tol=1e-5, max_iter=50, compute_Q=Q_normal)
   {## STEP 0 (STANDARDIZE)
     if (self$scale == TRUE)
     {      print('was scaled')
@@ -1225,22 +1200,29 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
     delta_hat<-self$delta_hat
     Q_old<-1e100
     
+    
     for (i in c(1:max_iter))  ###print smth IF LOSS DOES NOT DECREASE AFTER ONE ITER
     {    
       ## STEP 2 (UPDATE DELTA)
       delta_hat<- update_delta(X=X, y=y, beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_delta=lambda_delta, l1=self$l1, l2=self$l2, l3=self$l3)
       
       ## STEP 3 (UPDATE GAMMA)
-      gamma_hat<- update_gamma(X=X, y=y,beta_hat=beta_main, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_gamma=lambda_gamma,  l1=l1, l2=l2, l3=l3, w=1)
-      
+      gamma_hat<- update_gamma(X=X, y=y,beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_gamma=lambda_gamma,  l1=self$l1, l2=self$l2, l3=self$l3, w=1)
+
       ## STEP 4 (UPDATE BETA)
-      beta_hat<- update_beta(X=X, y=y,beta_hat=beta_main, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_beta=lambda_beta,  l1=l1, l2=l2, l3=l3, w=1)
-      
+      beta_hat<- update_beta(X=X, y=y,beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_beta=lambda_beta,  l1=self$l1, l2=self$l2, l3=self$l3, w=1)
+
       ## STEP 5 (COMPUTE REL_DIF)
-      Q_new<-compute_Q(X=X,y=y, beta= beta_hat, gamma_vec=gamma_hat, delta_vec=detlta_hat, 
+      Q_new<-compute_Q(X=X,y=y, beta= beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                        lambda_beta=lambda_beta, lambda_gamma=lambda_gamma, lambda_delta=lambda_delta,
-                       w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta)
+                       w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta,l1=self$l1, l2=self$l2, l3=self$l3)
       rel_dif<-compute_rel_dif(Q_old=Q_old, Q_new=Q_new)
+
+      
+      if (Q_new>Q_old*1.01)
+      {print("there is numerical instability overall. ")}
+      if(i%%2==1)
+      {cat("  Q: ",Q_new  )}
       
       
       
@@ -1249,20 +1231,138 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
         self$beta_hat<-beta_hat
         self$gamma_hat<-gamma_hat
         self$delta_hat<-delta_hat
-        return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat)) }
+        beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
+        beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+        beta_all<-array(c(beta_hat, beta_2way, beta_3way))
+        
+        return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all)) }
       Q_old<-Q_new #UPDATE Q_old
       }
       cat("It has not converged. The relative difference between last 2 residuals is:", compute_rel_dif(Q_old=Q_old,Q_new=Q_new) )
       self$beta_hat<-beta_hat
       self$gamma_hat<-gamma_hat
       self$delta_hat<-delta_hat
-      return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat)) 
+      beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
+      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+      beta_all<-array(c(beta_hat, beta_2way, beta_3way))
+      
+      return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all)) 
       }
 
-    
+  
+  
+  
+  predict<-function(self, X_new, mean_y,scale=FALSE)
+  {if (scale ==TRUE)
+    {X<-scale(X_new)}
+  beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
+  beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+  beta_all<-array(c(beta_hat, beta_2way, beta_3way))
+  y_pred<-  X_new%*%beta_all+mean_y
+  return(y_pred)
+  }
+  
+  R2_score<-function(self, X_new, y_true, scale=FALSE, verbose=TRUE)
+  {y_pred<-predict(self, X_new, scale=scale, mean_y=mean(y_true))
+  if (verbose == TRUE)
+  {cat ("r2 score is ", r2(y_true, y_pred))
+    cat(length(y_true), ' ', length(y_pred))
+    plot(array(y_pred), array(y_true))}
+  
+  return(r2(y_true, y_pred))}
+  
+  return(list( fit = fit, predict = predict, R2_score = R2_score, self = self))
     
 }
   
+
+
+
+
+
+
+
+
+#### TEST SHIM CLASS ##########
   
   
+data<- create_basic_dataset()
+X<- data$X
+y<- data$y$obs
+
+beta_true<- data$beta[-1,]
+l1=8
+l2=8
+l3=4
+#print(beta_true)
+
+range_main<-c(1: (l1+l2+l3) )
+range_theta<-c( (l1+l2+l3+1) : (l1+l2+l3+l1*(l2+l3)+l2*l3) )
+range_psi<-c(  (l1+l2+l3+ 1+ l1*(l2+l3)+l2*l3): (l1+l2+l3+ l1*(l2+l3)+l2*l3+l1*l2*l3) )
+
+beta_main<-beta_true[1:(l1+l2+l3)]
+beta_2way<-beta_true[unlist(get_ranges(l1,l2,l3)[2])]
+beta_3way<-beta_true[unlist(get_ranges(l1,l2,l3)[3])]
+beta_2way_without_gamma<-get_beta_vec_2way(beta = beta_main, l1=l1, l2=l2, l3=l3, gamma=NULL, only_beta = TRUE )
+beta_3way_without_gamma<-get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta = NULL, only_beta = TRUE)
+
+
+gamma_true<-beta_2way/beta_2way_without_gamma
+gamma_true[is.nan(gamma_true)]<-0
+delta_true<-beta_3way/beta_3way_without_gamma
+delta_true[is.nan(delta_true)]<-0
+
+y_centered<-y-mean(y)
+lasso_model <- glmnet(X, y_centered, alpha = 1, intercept = FALSE, standardize = FALSE, lambda=0.1)
+coefs_lasso<-coefficients(lasso_model)[-1]
+beta_main_lasso<-coefs_lasso[range_main]
+beta_2way_lasso<-coefs_lasso[range_theta]
+beta_3way_lasso<-coefs_lasso[range_psi]
+beta_2way_lasso_without_gamma<-get_beta_vec_2way(beta_main_lasso,l1=l1,l2=l2,l3=l3,only_beta = TRUE)
+beta_3way_lasso_without_delta<- get_beta_vec_3way(beta_2way_lasso, l1=l1, l2=l2, l3=l3, only_beta = TRUE)
+
+
+length(c(beta_main, beta_2way, beta_3way))
+print("lasso")
+all_beta_functions(beta_main, beta_main_lasso)
+all_beta_functions(beta_2way, beta_2way_lasso)
+all_beta_functions(beta_3way, beta_3way_lasso)
+
+
+
+beta_hat<-beta_main_lasso
+gamma_hat<- beta_2way_lasso/beta_2way_lasso_without_gamma
+gamma_hat[is.nan(gamma_hat)]<-0
+gamma_hat[!is.finite(gamma_hat)]<-0 #this is 0 in shim case
+delta_hat<- beta_3way_lasso/beta_3way_lasso_without_delta
+delta_hat[!is.finite(delta_hat)]<-0
+delta_hat[is.nan(delta_hat)]<-0
+
+##USE SHIM MODEL
+
+lambda_beta<-100
+lambda_gamma<-1200
+lambda_delta<-500
+
+
+my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
+fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
+                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=6e-3)
+
+my_shim$R2_score(self=fitted, X_new=X, y_true=y )
+
+
+beta_all_shim<-fitted$beta_all
+beta_main_shim<-beta_all_shim[range_main]
+beta_2way_shim<-beta_all_shim[range_theta]
+beta_3way_shim<-beta_all_shim[range_psi]
+
+
+
+all_beta_functions(beta_main, beta_main_shim)
+all_beta_functions(beta_2way, beta_2way_shim)
+all_beta_functions(beta_3way, beta_3way_shim)
+
+
+
 
