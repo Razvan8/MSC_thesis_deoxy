@@ -87,7 +87,7 @@ test_hierarchy_layer12 <- function(beta, theta, strong = FALSE)
     }
   }
   
-  paste("Hierarchy is broken for", hierarchy_break, "times")
+  cat("Hierarchy is broken for", hierarchy_break, "times")
   
 }
 
@@ -156,7 +156,7 @@ test_hierarchy_layer23 <- function(theta, psi, strong = FALSE)
   }
   
     
-    paste("Hierarchy is broken for", hierarchy_break, "times")
+    cat("Hierarchy is broken for", hierarchy_break, "times")
     
   }
   
@@ -307,7 +307,7 @@ test_hierarchy_layer23_approx <- function(theta, psi, strong = FALSE, threshold_
 
 
 
-print("matrix")
+#print("matrix")
 matrix <- matrix(0, nrow = 4, ncol = 4)
 matrix[1, 2] <- 1
 matrix[2, 3] <- 2
@@ -322,7 +322,7 @@ psi[3,1,4]<--0.3e-3
 psi[4,1,3]<--0.3e-4
 psi[4,3,1]<--0.3e-3
 
-print(matrix)
+#print(matrix)
 
 test_hierarchy_layer23_approx(matrix,psi, strong = FALSE)
 

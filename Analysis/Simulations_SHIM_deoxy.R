@@ -115,7 +115,7 @@ cv_fit <- cv.glmnet(X, y_centered, alpha = 1)
 best_lambda <- cv_fit$lambda.min
 cat("best lambda: ",best_lambda)
 #best_lambda<-0.1
-lasso_model <- glmnet(X, y_centered, alpha = 1, intercept = FALSE, standardize = FALSE, lambda=best_lambda*0)
+lasso_model <- glmnet(X, y_centered, alpha = 1, intercept = FALSE, standardize = FALSE, lambda=best_lambda)
 y_pred<-predict(lasso_model, newx=X)
 plot(y_pred, y_centered, col=2)
 r2(y_centered, y_pred)
@@ -159,7 +159,7 @@ lambda_delta<-900
 
 my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
 fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
-                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-2)
+                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-3)
 
 my_shim$R2_score(self=fitted, X_new=X, y_true=y )
 
@@ -245,14 +245,14 @@ delta_hat[is.nan(delta_hat)]<-0
 
 
 
-lambda_beta<-100
-lambda_gamma<-7000
-lambda_delta<-5000
+lambda_beta<-200
+lambda_gamma<-9000
+lambda_delta<-6000
 
 
 my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
 fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
-                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-2)
+                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-3)
 
 my_shim$R2_score(self=fitted, X_new=X, y_true=y )
 

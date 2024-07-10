@@ -91,7 +91,7 @@ for (i in c(1:3))
  rangeold_j<-unlist(ls_range_old[j])
     theta_new[rangenew_i[-length(rangenew_i)], rangenew_j[-length(rangenew_j)]] <- theta_old[rangeold_i, rangeold_j]}}
 
-print(theta_new)
+
 ##STEP 2 Create matrix of coefs
 theta<- (theta_new+t(theta_new) )/2
 
@@ -109,7 +109,7 @@ for (i in c(1:l1)){
                                        j= get_position_in_table(main=3, idx=l3+1, l1=l1+1, l2=l2+1, l3=l3+1),
                                        threshold = threshold)} #(ac)_i l3+1
 
-print(theta)
+
   
 for (j in c(1:l2)){
   theta<-set_positioned_value_in_theta(theta = theta, val = 
@@ -122,7 +122,7 @@ for (j in c(1:l2)){
                                        , i= get_position_in_table(main=2, idx=j, l1=l1+1, l2=l2+1, l3=l3+1),
                                        j= get_position_in_table(main=3, idx=l3+1, l1=l1+1, l2=l2+1, l3=l3+1),
                                        threshold = threshold) }  #(bc)_j l3+1
-print(theta)
+
 
 for (k in c(1:l3)){
   theta<-set_positioned_value_in_theta(theta = theta, val = 
@@ -270,7 +270,7 @@ get_all_psi<-function(psi, l1, l2, l3, threshold=1e-3)
                                        k=get_position_in_table(main = 3, idx=k, l1=l1+1, l2=l2+1, l3=l3+1),
                                        threshold = threshold) }} # (abc)_{l1+1 j k}
   
-  print(psi)
+  #print(psi)
   
   
   

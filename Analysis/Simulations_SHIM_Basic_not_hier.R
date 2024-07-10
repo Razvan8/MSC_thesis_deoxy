@@ -6,10 +6,12 @@ source(file.path(libs_path,'recover_parameters.R'))
 
 
 
-data<- create_basic_dataset()
+data<- create_basic_dataset_not_hier()
 X<- data$X
 y<- data$y$obs
 mean(y)
+
+
 
 beta_true<- data$beta[-1,]
 l1=8
@@ -305,21 +307,21 @@ test_hierarchy_layer23( get_theta_from_theta_vec_2way3( beta_2way_shim_recovered
 
 
 ##### results pipeline Lasso ######
+
+
 lambda<-0.08
 results_lasso<-results_pipeline_lasso(X=X, y=y_centered, lambda=lambda, l1=l1, l2=l2, l3=l3, beta_main, beta_2way, beta_3way, beta_main_recovered, beta_2way_recovered, 
                        beta_3way_recovered, threshold = 0, strong = TRUE)
-
 
 beta_main_lasso<- results_lasso$main
 beta_2way_lasso<-results_lasso$'2way'
 beta_3way_lasso<-results_lasso$'3way'
 
 
-
-############# PLS ############
 n_comp=3
 results_pls<-results_pipeline_pls(X=X, y=y_centered, n_comp=n_comp, l1=l1, l2=l2, l3=l3, beta_main, beta_2way, beta_3way, beta_main_recovered, beta_2way_recovered, 
-                                  beta_3way_recovered, threshold = 0, strong = TRUE)
+                     beta_3way_recovered, threshold = 0, strong = TRUE)
+
 beta_main_pls<- results_pls$main
 beta_2way_pls<-results_pls$'2way'
 beta_3way_pls<-results_pls$'3way'
@@ -332,9 +334,6 @@ beta_3way_pls<-results_pls$'3way'
 lambda_beta<-50
 lambda_gamma<-900
 lambda_delta<-1000
-
-
-## results pipeline shim
 
 
 
@@ -352,14 +351,6 @@ results_pipeline_shim(X=X, y=y, beta_main_init = beta_main_pls, beta_2way_init =
                       lambda_beta = lambda_beta, lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, l1=l1, l2=l2, l3=l3,
                       beta_main = beta_main, beta_2way = beta_2way, beta_3way = beta_3way , beta_main_recovered = beta_main_recovered, 
                       beta_2way_recovered = beta_2way_recovered, beta_3way_recovered = beta_3way_recovered, tol=1e-3, threshold = 0)
-
-
-abline(0,1)
-
-
-
-
-
 
 
 

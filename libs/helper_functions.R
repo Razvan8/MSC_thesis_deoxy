@@ -227,7 +227,7 @@ MSE_beta<-function(beta, beta_hat){
   beta_hat<-c(beta_hat)
   return(norm(beta-beta_hat, type="2")^2/length(beta))}
 
-print(MSE_beta(c(1,2,3,4),c(0,0,0,1)))
+#print(MSE_beta(c(1,2,3,4),c(0,0,0,1)))
 
 TPR_zeros<-function(beta,beta_hat) #TPR-sensitivity (TP /(TP+FN)) ##predicted as 0 from 0
   { beta<-c(beta)
