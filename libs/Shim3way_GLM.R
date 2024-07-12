@@ -6,6 +6,54 @@ library(pls)
 source(file.path(libs_path,"Create_synthetic_datasets.R"))
 source(file.path(libs_path,"helper_functions.R"))
 
+# Define the function
+split_data_safe <- function(X, y, specified_columns, additional_percentage = 0.3) {
+  
+  
+  # Ensure at least one sample from each specified column is in the training set
+  initial_train_indices <- unique(unlist(lapply(specified_columns, function(col) {
+    sample(which(X[, col] == 1), 1)
+  })))
+  print(length(initial_train_indices))
+  
+  # Randomly add some percentage of additional samples with value 1 to the training set
+  additional_indices <- setdiff((1:dim(X)[1]), initial_train_indices)
+  num_additional <- round(length(additional_indices) * additional_percentage)
+  additional_train_indices <- sample(additional_indices, num_additional)
+  
+  # Combine the indices to form the final train indices
+  train_indices <- unique(c(initial_train_indices, additional_train_indices))
+  
+  
+  # Combine indices to form the final train and test sets
+  
+  test_indices <- setdiff( (1:nrow(X) ), train_indices )
+  
+  # Create train and test sets
+  X_train <- X[train_indices, ]
+  X_test <- X[test_indices, ]
+  y_train <- y[train_indices]
+  y_test <- y[test_indices]
+  
+  # Return the results as a list
+  list(X_train = X_train, y_train = y_train, X_test = X_test, y_test = y_test)
+}
+
+
+# Define the function
+split_data_basic <- function(X, y, p = 0.8) {
+  set.seed(42)  # For reproducibility
+  split <- createDataPartition(y, p = p, list = FALSE)
+  
+  # Create train and test sets
+  X_train <- X[split, ]
+  X_test <- X[-split, ]
+  y_train <- y[split]
+  y_test <- y[-split]
+  
+  # Return the results as a list
+  list(X_train = X_train, y_train = y_train, X_test = X_test, y_test = y_test)
+}
 
 
 
@@ -246,7 +294,7 @@ kappa2 <- function(x) {
 irlasso.cb <- function(X, Y, lambda, w.lambda=NULL, beta0=NULL,
                        centering=TRUE, scaling=TRUE, intercept=TRUE,
                        maxit=10, tol=0.0545, sd.tol=1e-6,
-                       verbose=FALSE){
+                       verbose=FALSE,C=0){
   
   if (verbose) print("Performing IRLASSO-NEW")
   
@@ -326,7 +374,6 @@ irlasso.cb <- function(X, Y, lambda, w.lambda=NULL, beta0=NULL,
   
   nc <- 1:length(lambda) 
   it.stop <- rep(0, length(lambda))
-  print("here1")
   
   # Run until convergence or stop
   counter <- 0
@@ -352,7 +399,7 @@ irlasso.cb <- function(X, Y, lambda, w.lambda=NULL, beta0=NULL,
     if (verbose) print(paste("Lambda left", paste(nc, collapse=" ")))
     for (m in nc) {
       
-      eta[,,m] <- X%*%beta[,,m]
+      eta[,,m] <- X%*%beta[,,m] + C
       
       k.p[,,m] <- kappa1(eta[,,m])
       
@@ -668,7 +715,7 @@ counter<-l1+l2+l3+1
 
 for (i in c(1:l1)){ #ab ac
   for (j in c ( (l1+1): (l1+l2+l3) ) ){
-    print(counter)
+    #print(counter)
     xx.all[,counter]<-X[,i]*X[,j]
     counter<-counter+1}}
 
@@ -842,7 +889,7 @@ delta_vec<-array(1, dim=length(delta_vec))}
 
 ##loss function normal- Q
 Q_bern<-function(X,y, beta, gamma_vec, delta_vec, lambda_beta, lambda_gamma, lambda_delta, w_beta, w_gamma, w_delta,l1,l2,l3,
-                   already_multiplied=TRUE, scaled=TRUE)
+                   already_multiplied=TRUE, scaled=TRUE, intercept=0)
 { if (length(beta)== l1 +l2+l3)
 {#print("Beta was given only main and computed for the rest")
   already_multiplied = TRUE
@@ -861,7 +908,7 @@ Q_bern<-function(X,y, beta, gamma_vec, delta_vec, lambda_beta, lambda_gamma, lam
   
   #def log like: sum(y*(Xbeta)-k(Xbeta))
   #v=g_normal(X=X, beta=beta, gamma_vec = gamma_vec, delta_vec = delta_vec, l1=l1, l2=l2, l3=l3, already_multiplied = already_multiplied) #Xbeta
-  v=X%*%beta
+  v=X%*%beta+intercept
   log.like<-sum(y*v-kappa0(v))
   if(scaled==TRUE) ############# CHECK THIS ###########################
   {log.like<-log.like/(2*dim(X)[1])}
@@ -870,13 +917,13 @@ Q_bern<-function(X,y, beta, gamma_vec, delta_vec, lambda_beta, lambda_gamma, lam
   return(loss)
 }
 
-minimizer_Q_bern<-function(X,y, C, lambda, beta_old, weight=1, scaled=TRUE) #function to find the minimum for 1D beta update # interval should depend on old beta/gamma
+minimizer_Q_bern<-function(X,y, C, lambda, beta_old, weight=1, scaled=TRUE, intercept=0) #function to find the minimum for 1D beta update # interval should depend on old beta/gamma
 {
  
  fct<-function(b)
  {#penalty<-get_penalty(vector=c(b), weights = c(weight), lambda=lambda)
  penalty<-abs(b)*lambda*weight
- v= X*b+C ##minimize for kappa1(Xbeta+C) =y
+ v= X*b+C+intercept ##minimize for kappa1(Xbeta+C) =y
  #cat(" X:", X,  " b: ", b,  " C" , C," v: ",v  )
  log.like<-sum(y*v-kappa0(v)) 
  if(scaled==TRUE) ############# CHECK THIS ###########################
@@ -902,14 +949,16 @@ minimizer_Q_bern<-function(X,y, C, lambda, beta_old, weight=1, scaled=TRUE) #fun
  }
 
 
-minimizer_Q_bern_beta<-function(X1, X2, y, C, lambda, beta_old, weight=1, scaled=TRUE) #function to find the minimum for 1D beta update # interval should depend on old beta/gamma
+
+
+minimizer_Q_bern_beta<-function(X1, X2, y, C, lambda, beta_old, weight=1, scaled=TRUE, intercept=0) #function to find the minimum for 1D beta update # interval should depend on old beta/gamma
 {
   
   fctb<-function(b)
   {penalty<-get_penalty(vector=c(b), weights = c(weight), lambda=lambda)
     #penalty<-abs(b)*lambda*weight
     C<-array(C)
-    v= as.matrix(X1*b +X2*(b^2)+C) ##minimize for kappa1(Xbeta+C) =y
+    v= as.matrix(X1*b +X2*(b^2)+C+ intercept) ##minimize for kappa1(Xbeta+C) =y
     #cat(" X:", X,  " b: ", b,  " C" , C," v: ",v  )
     log.like<-sum(y*v-kappa0(v)) 
     #cat("dimX: ", length(X1),' pen:', penalty)
@@ -949,7 +998,39 @@ return(rel_dif)}
 
 ##### UPDATE DELTA FUNCTION #####
 
-update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2, l3) 
+
+
+update_intercept<-function(X, y, beta_all, intercept_old) #function to find the minimum for 1D beta update # interval should depend on old beta/gamma
+{
+  
+  fctint<-function(intercept)
+  {
+  v= as.matrix(X%*%beta_all+ intercept) ##minimize for kappa1(Xbeta+C) =y
+  #cat(" X:", X,  " b: ", b,  " C" , C," v: ",v  )
+  log.like<-sum(y*v-kappa0(v)) 
+  loss<- -log.like #scale does not matter
+  return(loss)
+  }
+  #fct(1)
+  interval<-c(min(-intercept_old/2 -1e-5, 5*intercept_old/2 -1e-5), max(-intercept_old/2 +1e-5, 3*intercept_old/2 + 1e-5 ) )
+  #cat("interval",interval)
+  result_optimize <- optimize(fctint, interval = interval )
+  minimum<-result_optimize$minimum
+  f_0<-fctint(0)
+  if ( f_0 <= fctint(minimum) & f_0 <=fctint(intercept_old))
+  {return(0)}
+  
+  if (fctint(intercept_old)<=fctint(minimum))
+  {return(intercept_old)}
+  
+  return(minimum)
+}
+
+
+
+
+
+update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2, l3, intercept=0, bind_C=TRUE) 
   ##beta_hat is only for mains
 {beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
  beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = TRUE) #This is with gamma WITHOUTdelta
@@ -962,38 +1043,49 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  X_tilde<-matrix(rep(beta_3way, each = nrow(X_3way)), nrow = nrow(X_3way))*X_3way
  X_c<-X[,c( unlist(get_ranges(l1,l2,l3)[1]), unlist(get_ranges(l1,l2,l3)[2]) ) ] #Xc
  beta_c<- c(beta_hat, beta_2way) #beta2way is with delta
- C<-X_c%*%beta_c
+ C<-X_c%*%beta_c+intercept#add intercept to C
  X_tilde<-cbind(X_tilde,C)#add C to X_tilde
  #lambda_delta<-lambda_delta/(2*nrow(X)) ##scale lambda because in lasso we have 1/(2n)* loss
  #lasso_model <- glmnet(X_tilde, y_tilde, alpha = 1, lambda = lambda_delta, intercept = FALSE, standardize = FALSE)
  
-
+ delta_hat_old<-delta_hat
  #print(lambda_delta)
  beta0<-0*delta_hat#init beta 0 good
  beta0<-c(beta0,1)
  Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                    lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+ if (bind_C==TRUE){
  lasso_rez<-irlasso.cb(X=X_tilde, Y=y_tilde, lambda=lambda_delta, w.lambda=NULL, beta0=beta0,
             centering=FALSE, scaling=FALSE, intercept=F,
             maxit=10, tol=0.0545, sd.tol=1e-6,
             verbose=F)
- print(dim(delta_hat))
+ #print(dim(delta_hat))
  lasso_coef <- array(lasso_rez$BETA, dim= length(lasso_rez$BETA) )
  cat("lasso coef: ", lasso_coef)
- delta_hat<- lasso_coef[-length(lasso_coef)]
- print(dim(lasso_coef))
+ delta_hat<- lasso_coef[-length(lasso_coef)]# last is coef for all other factors including intercept
+ }
+ else{
+   lasso_rez<-irlasso.cb(X=X_tilde[,-dim(X_tilde)[2]], Y=y_tilde, lambda=lambda_delta, w.lambda=NULL, beta0=beta0,
+                         centering=FALSE, scaling=FALSE, intercept=F,
+                         maxit=10, tol=0.0545, sd.tol=1e-6,
+                         verbose=F, C=C)
+   #print(dim(delta_hat))
+   delta_hat <- array(lasso_rez$BETA, dim= length(lasso_rez$BETA) )
+ }
  
  Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                    lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
- cat("delta: new- old: ", Q_new -Q_old)
+ cat(" try delta: new- old: ", Q_new -Q_old)
  
- if ( Q_new-Q_old >abs(Q_old)*1e-2){
-   print("There might be numerical instability in update delta.")
+ if ( Q_new-Q_old >abs(Q_old)*1e-10){
+   delta_hat<-delta_hat_old
+   print("There might be numerical instability in update delta which was taken care of by using old delta. ")
+   cat("Actually new-old = 0")
  }
 
- print(delta_hat)
+ #print(delta_hat)
  return(delta_hat)
  
 }
@@ -1064,7 +1156,7 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
 ##### UPDATE GAMMA FUNCTION #####
 
 
-update_gamma<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_gamma, l1, l2, l3, w=1) 
+update_gamma<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_gamma, l1, l2, l3, w=1, intercept=0) 
 {range1<- c(1:l1)
  range2<-c((l1+1):(l1+l2))
  range3<-c( (l1+l2+1) : (l1+l2+l3) )
@@ -1134,7 +1226,7 @@ for(i in range1){
     
     Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                   lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
-                  w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                  w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
     
     
      
@@ -1147,7 +1239,7 @@ for(i in range1){
     #gamma_hat[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3)] <- array(rez_lasso$BETA, dim=2)[-length(array(rez_lasso$BETA, dim=2))]
     gamma_hat[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3)] <- minimizer_Q_bern(
       X=X_tilde,y=y_tilde, C=C, lambda=lambda_gamma, beta_old=gamma_hat[matrix_position_to_vector_index_2way(c(i,j), l1=l1, l2=l2, l3=l3)] 
-      , weight=1, scaled=TRUE)
+      , weight=1, scaled=TRUE, intercept = intercept)
 
     
    
@@ -1158,7 +1250,7 @@ for(i in range1){
     
     Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
              lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
-             w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3,already_multiplied=TRUE)
+             w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3,already_multiplied=TRUE, intercept = intercept)
     
     #if (Q_new-Q_old >=0)
     #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
@@ -1224,7 +1316,7 @@ for(i in range1){
      
      Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                      lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
-                     w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                     w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
      
      
      
@@ -1241,20 +1333,20 @@ for(i in range1){
      #gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)] <- array(rez_lasso$BETA, dim=1)[-1]
      gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)] <- minimizer_Q_bern(
        X=X_tilde,y=y_tilde, C=C, lambda=lambda_gamma, beta_old=gamma_hat[matrix_position_to_vector_index_2way(c(i,k), l1=l1, l2=l2, l3=l3)] 
-       , weight=1, scaled=TRUE)
+       , weight=1, scaled=TRUE, intercept = intercept)
      
      beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
      
      Q_new <-  Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                       lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
-                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
      
      #if (Q_new-Q_old >=0)
      print("gamma")
      print(Q_new-Q_old)
      #cat(" new-old, old delta: ", Q_new-Q_old, " ", Q_old)
-     if ( Q_new-Q_old >abs(Q_old)*1e-2){
+     if ( Q_new-Q_old >abs(Q_old)*1e-10){
        print("There might be numerical instability in update gamma.")
      }
      
@@ -1262,7 +1354,7 @@ for(i in range1){
  }
  
 
- cat("gamma : ", gamma_hat)
+ #cat("gamma : ", gamma_hat)
 
  
  for(j in range2){
@@ -1316,7 +1408,7 @@ for(i in range1){
      
      Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                      lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
-                     w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                     w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
      
      
      
@@ -1329,14 +1421,14 @@ for(i in range1){
      
      gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)] <- minimizer_Q_bern(
        X=X_tilde,y=y_tilde, C=C, lambda=lambda_gamma, beta_old=gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)] 
-       , weight=1, scaled=TRUE)
+       , weight=1, scaled=TRUE, intercept = intercept)
      
      beta_2way <- get_beta_vec_2way(beta = beta_hat, l1=l1, l2=l2, l3=l3, gamma=gamma_hat, only_beta = FALSE) ###This is with delta
      beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta=delta_hat, only_beta = FALSE) #This is with gamma WITH delta
      
      Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                      lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
-                     w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                     w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
      #if (Q_new-Q_old >=0)
      print("gamma")
      print( Q_new-Q_old)
@@ -1404,7 +1496,7 @@ return(gamma_hat)
 ##### UPDATE BETA FUNCTION #####
 
 
-update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l2, l3, w=1)
+update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l2, l3, w=1, intercept=0)
 {
   range1 <- c(1:l1)
   range2 <- c((l1 + 1):(l1 + l2))
@@ -1506,14 +1598,14 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
     #cat("X1dim: ", dim(X1_tilde), " X2dim: ", dim(X2_tilde))
     Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                     lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
-                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
 
     
     #coefs<-get_coef_from_xyz(x=array(X1_tilde), y= array(y_tilde), z=array(X2_tilde) ) #coefs as c0 c1 c2...c4
     beta_hat_old<-beta_hat[i]
     #beta_hat[i]<-poly_lasso_min(coefs = coefs, lambda = lambda_beta, old_x = beta_hat_old ) #beta updated
     beta_hat[i]<-minimizer_Q_bern_beta(X1=X1_tilde, X2=X2_tilde, y=y_tilde, C=C, lambda=lambda_beta, beta_old=beta_hat_old,
-                                                 weight=1, scaled=TRUE)
+                                                 weight=1, scaled=TRUE, intercept = intercept)
 
     beta_2way <- get_beta_vec_2way(beta = beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = gamma_hat, only_beta = FALSE) ###This is with delta
     beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = delta_hat, only_beta = FALSE) #This is with gamma WITH delta
@@ -1522,13 +1614,14 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
     
     Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                     lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
-                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
-    if ( Q_new-Q_old >abs(Q_old)*1e-2){
+                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
+    if ( Q_new-Q_old >abs(Q_old)*1e-10){
       print("There might be numerical instability in update beta.")
+      cat(" new-old beta: ",Q_new- Q_old,' ')
     }
 
-    #cat(" new,old: ",Q_new-Q_old, " Q: ",Q_new)
-    cat(" new-old beta: ",Q_new- Q_old,' ')
+    print(Q_new-Q_old) 
+    
     
   }
   
@@ -1609,13 +1702,13 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
     
     Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                     lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
-                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
 
     
     #coefs<-get_coef_from_xyz(x=array(X1_tilde), y= array(y_tilde), z=array(X2_tilde)) #coefs as c0 c1 c2...c4
     beta_hat_old<-beta_hat[j]
     beta_hat[j]<-minimizer_Q_bern_beta(X1=X1_tilde, X2=X2_tilde, y_tilde, C=C, lambda=lambda_beta, beta_old=beta_hat_old,
-                                                 weight=1, scaled=TRUE)
+                                                 weight=1, scaled=TRUE, intercept = intercept)
 
     
     #update beta_23way
@@ -1625,13 +1718,14 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
     
     Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                     lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
-                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
-    if ( Q_new-Q_old >abs(Q_old)*1e-2){
+                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
+    if ( Q_new-Q_old >abs(Q_old)*1e-10){
       print("There might be numerical instability in update beta.")
+      cat(" new-old beta: ",Q_new-Q_old,' ')
     }
     
-    #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new) 
-    cat(" new-old beta: ",Q_new-Q_old,' ')
+    print(Q_new-Q_old) 
+    
   }
     
     
@@ -1702,12 +1796,12 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
       
       Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                       lambda_beta=lambda_beta, lambda_gamma = 0, lambda_delta = 0, 
-                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
       
       #coefs<-get_coef_from_xyz(x=array(X1_tilde), y= array(y_tilde), z=array(X2_tilde) ) #coefs as c0 c1 c2...c4
       beta_hat_old<-beta_hat[k]
       beta_hat[k]<-minimizer_Q_bern_beta(X1=X1_tilde, X2=X2_tilde, y_tilde, C=C, lambda=lambda_beta, beta_old=beta_hat_old,
-                                                                    weight=1, scaled=TRUE)
+                                                                    weight=1, scaled=TRUE, intercept = intercept)
       #update beta_23way
       beta_2way <- get_beta_vec_2way(beta = beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = gamma_hat, only_beta = FALSE) ###This is with delta
       beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = delta_hat, only_beta = FALSE) #This is with gamma WITH delta
@@ -1716,12 +1810,13 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
       
       Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                       lambda_beta=lambda_beta, lambda_gamma = 0, lambda_delta=0, 
-                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
-      if ( Q_new-Q_old >abs(Q_old)*1e-2){
+                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
+      if ( Q_new-Q_old >abs(Q_old)*1e-10){
         print("There might be numerical instability in update beta.")
+        cat(" new-old beta: ",Q_new-Q_old,' ')
       }
       
-      cat(" new-old beta: ",Q_new-Q_old,' ')
+      
     }
 
   #print(beta_hat)
@@ -1805,7 +1900,8 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
   
   
   
-  fit<-function(X, y, lambda_beta, lambda_gamma, lambda_delta, w_beta=NULL, w_gamma=NULL, w_delta=NULL,  tol=1e-5, max_iter=50, compute_Q=Q_normal)
+  fit<-function(X, y, lambda_beta, lambda_gamma, lambda_delta, w_beta=NULL, w_gamma=NULL, w_delta=NULL,  tol=1e-5,
+                max_iter=50, compute_Q=Q_normal, intercept=0, use_intercept=FALSE, bind_C=TRUE)
   {## STEP 0 (STANDARDIZE)
     if (self$scale == TRUE)
     {      print('was scaled')
@@ -1819,23 +1915,42 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
     delta_hat<-self$delta_hat
     Q_old<-1e100
     
+    beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
+    beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
+    beta_all<-array(c(self$beta_hat, beta_2way, beta_3way))
+    
     
     for (i in c(1:max_iter))  ###print smth IF LOSS DOES NOT DECREASE AFTER ONE ITER
     {    
+      if (use_intercept==TRUE)
+        print(intercept)
+      { Q_old<- compute_Q(X=X,y=y, beta= beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                         lambda_beta=lambda_beta, lambda_gamma=lambda_gamma, lambda_delta=lambda_delta,
+                         w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta,l1=self$l1, l2=self$l2, l3=self$l3, intercept = intercept)
+        intercept<-update_intercept(X=X, y=y, beta_all=beta_all, intercept_old=intercept)#### later do update(intercept)
+      Q_new<- compute_Q(X=X,y=y, beta= beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
+                lambda_beta=lambda_beta, lambda_gamma=lambda_gamma, lambda_delta=lambda_delta,
+                w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta,l1=self$l1, l2=self$l2, l3=self$l3, intercept = intercept)
+      if(Q_new -Q_old > abs(Q_old)*1e-5) cat("Might be numerical instability in intercept ", Q_new-Q_old )
+      }
+      
       ## STEP 2 (UPDATE DELTA)
-      delta_hat<- update_delta(X=X, y=y, beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_delta=lambda_delta, l1=self$l1, l2=self$l2, l3=self$l3)
+      delta_hat<- update_delta(X=X, y=y, beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_delta=lambda_delta,
+                               l1=self$l1, l2=self$l2, l3=self$l3, intercept=intercept, bind_C = bind_C)
       
       ## STEP 3 (UPDATE GAMMA)
       
-      gamma_hat<- update_gamma(X=X, y=y,beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_gamma=lambda_gamma,  l1=self$l1, l2=self$l2, l3=self$l3, w=1)
+      gamma_hat<- update_gamma(X=X, y=y,beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_gamma=lambda_gamma,
+                               l1=self$l1, l2=self$l2, l3=self$l3, w=1, intercept = intercept)
 
       ## STEP 4 (UPDATE BETA)
-      beta_hat<- update_beta(X=X, y=y,beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_beta=lambda_beta,  l1=self$l1, l2=self$l2, l3=self$l3, w=1)
+      beta_hat<- update_beta(X=X, y=y,beta_hat=beta_hat, gamma_hat=gamma_hat, delta_hat=delta_hat, lambda_beta=lambda_beta,  
+                             intercept = intercept, l1=self$l1, l2=self$l2, l3=self$l3, w=1)
 
       ## STEP 5 (COMPUTE REL_DIF)
       Q_new<-compute_Q(X=X,y=y, beta= beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                        lambda_beta=lambda_beta, lambda_gamma=lambda_gamma, lambda_delta=lambda_delta,
-                       w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta,l1=self$l1, l2=self$l2, l3=self$l3)
+                       w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta,l1=self$l1, l2=self$l2, l3=self$l3, intercept = intercept)
       if(Q_new ==Q_old) #rel dif 0 instead of nan
       {#cat("beta_hat: ", beta_hat)
         self$beta_hat<-beta_hat
@@ -1844,8 +1959,10 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
         beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
         beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
         beta_all<-array(c(self$beta_hat, beta_2way, beta_3way))
+        self$intercept<-intercept
         
-        return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all)) }
+        return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all,
+                     "intercept" = self$intercept)) }
       rel_dif<-compute_rel_dif(Q_old=Q_old, Q_new=Q_new)
 
       
@@ -1865,8 +1982,9 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
         beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
         beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
         beta_all<-array(c(self$beta_hat, beta_2way, beta_3way))
-        
-        return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all)) }
+        self$intercept<-intercept
+        return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all,
+                     "intercept" =self$intercept)) }
       Q_old<-Q_new #UPDATE Q_old
       }
       cat("It has not converged. The relative difference between last 2 residuals is:", compute_rel_dif(Q_old=Q_old,Q_new=Q_new) )
@@ -1876,33 +1994,69 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
       beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
       beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
       beta_all<-array(c(self$beta_hat, beta_2way, beta_3way))
-      
-      return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all)) 
+      self$intercept<-intercept
+      return (list("beta_hat" = self$beta_hat, "gamma_hat" = self$gamma_hat , "delta_hat" = self$delta_hat, "beta_all" = beta_all,
+                   "intercept" = self$intercept)) 
       }
 
   
   
   
-  predict<-function(self, X_new, mean_y=0,scale=FALSE)
+  predict<-function(self, X_new ,scale=FALSE)
   {if (scale ==TRUE)
-    {X<-scale(X_new)}
-  beta_2way <- get_beta_vec_2way(beta = self$beta_hat, l1 = l1, l2 = l2, l3 = l3, gamma = self$gamma_hat, only_beta = FALSE) ###This is with delta
-  beta_3way <- get_beta_vec_3way(beta_2way = beta_2way, l1 = l1, l2 = l2, l3 = l3, delta = self$delta_hat, only_beta = FALSE) #This is with gamma WITH delta
-  beta_all<-array(c(self$beta_hat, beta_2way, beta_3way))
-  y_pred<-  X_new%*%beta_all +mean_y*0 ### think should be always 0
+  {X<-scale(X_new)
+    print("Take care! X was scaled.")}
+  beta_all<-self$beta_all
+  v<-  X_new%*%beta_all+self$intercept  ### think should be always 0
+  y_pred<-kappa1(v)
   return(y_pred)
   }
   
   R2_score<-function(self, X_new, y_true, scale=FALSE, verbose=TRUE)
-  {y_pred<-predict(self, X_new, scale=scale, mean_y=mean(y_true))
+  {y_pred<-predict(self, X_new, scale=scale)
   if (verbose == TRUE)
   {cat ("r2 score is ", r2(y_true, y_pred))
-    cat(length(y_true), ' ', length(y_pred))
+    #cat(length(y_true), ' ', length(y_pred))
     plot(array(y_pred), array(y_true))}
   
   return(r2(y_true, y_pred))}
   
-  return(list( fit = fit, predict = predict, R2_score = R2_score, self = self))
+  
+  cross_validation <- function( X, y, lambda_values_main, lambda_values_2way, lambda_delta, intercept, split_percentage = 0.5) {
+    # Split the data
+    #self is big model SHIM_GLM
+    print(get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)[2])
+    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)[2]) )
+    X_train <- split_result$X_train
+    y_train <- split_result$y_train
+    X_test <- split_result$X_test
+    y_test <- split_result$y_test
+    
+    best_lambda <- NULL
+    best_R2score <- -Inf
+    
+    for (lambda1 in lambda_values_main) {
+      for(lambda2 in lambda_values_2way){
+
+      # Create and fit the model with the current lambda
+      fitted <- fit(X=X, y=y, lambda_beta=lambda1, lambda_gamma=lambda2, lambda_delta=lambda_delta, w_beta=1, w_gamma=1, w_delta=1,  tol=1e-2,
+                          max_iter=20, compute_Q=Q_bern, intercept=intercept, use_intercept=TRUE)
+
+      
+      # Compute the R2 score
+      R2 <- R2_score(self=fitted, X_new=X_test, y_true=y_test)
+      
+      # Check if this is the best R2 score so far
+      if (R2 > best_R2score) {
+        best_R2score <- R2
+        best_lambda1 <- lambda1
+        best_lambda2 <- lambda2
+      }}}
+    
+    return(list("best_lambda1" = best_lambda1, "best_lambda2" = best_lambda2, "best_R2score" = best_R2score))
+  }
+  
+  return(list( fit = fit, predict = predict, R2_score = R2_score, self = self, cross_validation = cross_validation))
     
 }
   
@@ -1917,9 +2071,9 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
 ##### results pipeline Lasso ######
 
 #use it on y_centered
-results_pipeline_lasso<-function(X, y, lambda, l1, l2, l3,
+results_pipeline_lasso_GLM<-function(X, y, lambda, l1, l2, l3,
                                  beta_main, beta_2way, beta_3way, beta_main_recovered, 
-                                 beta_2way_recovered, beta_3way_recovered, threshold = 0, strong = TRUE){
+                                 beta_2way_recovered, beta_3way_recovered, threshold = 0, strong = TRUE, use_intercept=FALSE){
   
   
   
@@ -1928,16 +2082,23 @@ results_pipeline_lasso<-function(X, y, lambda, l1, l2, l3,
   range_psi<-c(  (l1+l2+l3+ 1+ l1*(l2+l3)+l2*l3): (l1+l2+l3+ l1*(l2+l3)+l2*l3+l1*l2*l3) )
   
   
-  lasso_model <- glmnet(X, y, alpha = 1, intercept = FALSE, standardize = FALSE, lambda=lambda)
+
+  lasso_rez<-irlasso.cb(X=X, Y=y, lambda=lambda, w.lambda=NULL, beta0=NULL,
+                        centering=FALSE, scaling=FALSE, intercept=use_intercept,
+                        maxit=10, tol=0.0545, sd.tol=1e-6,
+                        verbose=F)
+  coefs_all<-lasso_rez$beta
+  if (use_intercept == F) {coefs_all<-c(0, coefs_all)}
   
-  coefs_lasso<-coefficients(lasso_model)[-1]
+  coefs_lasso<-coefs_all[-1]
+  intercept_lasso<-coefs_all[1]
   beta_main_lasso<-coefs_lasso[range_main]
   beta_2way_lasso<-coefs_lasso[range_theta]
   beta_3way_lasso<-coefs_lasso[range_psi]
   beta_2way_lasso_without_gamma<-get_beta_vec_2way(beta_main_lasso,l1=l1,l2=l2,l3=l3,only_beta = TRUE)
   beta_3way_lasso_without_delta<- get_beta_vec_3way(beta_2way_lasso, l1=l1, l2=l2, l3=l3, only_beta = TRUE)
   
-  predict_lasso<-predict(lasso_model, s=lambda, newx = X)
+  predict_lasso<- kappa1(intercept_lasso + X%*% coefs_lasso)
   print("r2 lasso")
   print(r2(y, predict_lasso))
   plot(predict_lasso, y)
@@ -1989,7 +2150,7 @@ results_pipeline_lasso<-function(X, y, lambda, l1, l2, l3,
   test_hierarchy_layer23( get_theta_from_theta_vec_2way3( beta_2way_lasso_recovered, l1=l1+1, l2=l2+1, l3=l3+1), 
                           get_psi_from_psi_vec3(beta_3way_lasso_recovered,l1=l1+1,l2=l2+1, l3=l3+1), strong = strong)
   
-  return (list("main"= beta_main_lasso , '2way' = beta_2way_lasso, '3way' = beta_3way_lasso))
+  return (list("intercept" = intercept_lasso, "main"= beta_main_lasso , '2way' = beta_2way_lasso, '3way' = beta_3way_lasso))
   
   
 }
@@ -2005,9 +2166,11 @@ results_pipeline_lasso<-function(X, y, lambda, l1, l2, l3,
 
 
 ####pipeline SHIM
-results_pipeline_shim<-function(X, y, beta_main_init, beta_2way_init, beta_3way_init, lambda_beta, lambda_gamma, lambda_delta, l1, l2, l3,
+results_pipeline_shim_GLM<-function(X, y, beta_main_init, beta_2way_init, beta_3way_init, lambda_beta, lambda_gamma, lambda_delta, l1, l2, l3,
                                 beta_main, beta_2way, beta_3way, beta_main_recovered, beta_2way_recovered, beta_3way_recovered, tol=1e-3,  
-                                w_beta = 1, w_gamma = 1, w_delta = 1,  scale=FALSE, strong= TRUE, threshold=0)
+                                w_beta = 1, w_gamma = 1, w_delta = 1,  scale=FALSE, strong= TRUE, threshold=0, intercept=0,
+                                use_intercept=FALSE, bind_C=TRUE)
+
 {
   ##PREPARE FOR SHIM ###################################################################################################\
   
@@ -2015,23 +2178,48 @@ results_pipeline_shim<-function(X, y, beta_main_init, beta_2way_init, beta_3way_
   range_theta<-c( (l1+l2+l3+1) : (l1+l2+l3+l1*(l2+l3)+l2*l3) )
   range_psi<-c(  (l1+l2+l3+ 1+ l1*(l2+l3)+l2*l3): (l1+l2+l3+ l1*(l2+l3)+l2*l3+l1*l2*l3) )
   
+  
+  
+  beta_main_recovered<- get_all_beta(beta_main, l1=l1, l2=l2, l3=l3, threshold = threshold)
+  beta_2way_recovered<-  get_theta_vec_2way3(  get_all_theta(beta_2way_matrix, l1=l1, l2=l2, l3=l3, threshold = threshold), l1=l1+1, l2=l2+1, l3=l3+1)
+  beta_3way_recovered<- get_psi_vec3( get_all_psi(beta_3way_table, l1=l1, l2=l2, l3=l3, threshold = threshold) , l1=l1+1, l2=l2+1, l3=l3+1)
+  
+  
+  beta_2way_without_gamma<-get_beta_vec_2way(beta = beta_main, l1=l1, l2=l2, l3=l3, gamma=NULL, only_beta = TRUE )
+  beta_3way_without_gamma<-get_beta_vec_3way(beta_2way = beta_2way, l1=l1, l2=l2, l3=l3, delta = NULL, only_beta = TRUE)
+  
+  
+  gamma_true<-beta_2way/beta_2way_without_gamma
+  gamma_true[is.nan(gamma_true)]<-0
+  delta_true<-beta_3way/beta_3way_without_gamma
+  delta_true[is.nan(delta_true)]<-0
+  
+  
+  
+  
+  
   beta_hat<-beta_main_init
   beta_2way_without_gamma_init<-get_beta_vec_2way(beta_hat,l1=l1,l2=l2,l3=l3,only_beta = TRUE)
   gamma_hat<- beta_2way_init/beta_2way_without_gamma_init
   gamma_hat[is.nan(gamma_hat)]<-0
   gamma_hat[!is.finite(gamma_hat)]<-0 #this is 0 in shim case
-  beta_3way_without_delta_init<-get_beta_vec_3way(beta_2way = beta_2way_init, l1=l1, l2=l2, l3=l3, only_beta = TRUE)
+  
+  #beta_3way_without_delta_init<-get_beta_vec_3way(beta_2way = beta_2way_init, l1=l1, l2=l2, l3=l3, only_beta = TRUE)
+  beta_3way_without_delta_init<- get_beta_vec_3way(beta_2way_without_gamma_init*gamma_hat, l1=l1, l2=l2, l3=l3, only_beta = TRUE) #maybe better for shim init
+  
   delta_hat<- beta_3way_init/beta_3way_without_delta_init
   delta_hat[!is.finite(delta_hat)]<-0
   delta_hat[is.nan(delta_hat)]<-0
   
   
+
   
   my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = scale)
   fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
-                      lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = w_beta, w_gamma = w_gamma, w_delta = w_delta, tol=tol)
+                      lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = w_beta, w_gamma = w_gamma, w_delta = w_delta, tol=tol,
+                      intercept=intercept, use_intercept=use_intercept, bind_C=bind_C, compute_Q = Q_bern)
   
-  print("here")
+
   my_shim$R2_score(self=fitted, X_new=X, y_true=y )
   
   
@@ -2039,6 +2227,7 @@ results_pipeline_shim<-function(X, y, beta_main_init, beta_2way_init, beta_3way_
   beta_main_shim<-beta_all_shim[range_main]
   beta_2way_shim<-beta_all_shim[range_theta]
   beta_3way_shim<-beta_all_shim[range_psi]
+  intercept_shim<-fitted$intercept
   
   
   print("--------------beta functions and hierarchy before recovery-----------")

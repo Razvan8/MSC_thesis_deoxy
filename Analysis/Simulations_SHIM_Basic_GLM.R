@@ -10,16 +10,21 @@ X<- data$X
 y<- data$y$obs
 y<-array(y, dim=(c(length(y),1)) )
 
+hist(y)
 
 
 
-res_lasso<-irlasso.cb(X=X, Y=y, lambda=0.001, w.lambda=NULL, beta0=NULL,
-  centering=FALSE, scaling=FALSE, intercept=F,
-  maxit=10, tol=0.0545, sd.tol=1e-6,
-  verbose=TRUE)
 
-y_pred<-kappa1(X%*%array(res_lasso$BETA, dim=c(length(res_lasso$BETA),1) )  + res_lasso$BETA[1]*0 )
 
+#res_lasso<-irlasso.cb(X=X, Y=y, lambda=0.001, w.lambda=NULL, beta0=NULL,
+#  centering=FALSE, scaling=FALSE, intercept=T,
+#  maxit=10, tol=0.0545, sd.tol=1e-6,
+#  verbose=TRUE)
+
+#res_lasso$beta
+
+#y_pred<-kappa1(X%*%array(res_lasso$BETA[-1], dim=c(length(res_lasso$BETA),1) )[-1]  + res_lasso$BETA[1]*1 )
+#lasso_init<-res_lasso$BETA[1]
 
 beta_true<- data$beta[-1,]
 l1=8
@@ -60,12 +65,13 @@ delta_true[is.nan(delta_true)]<-0
 lambda=0.001
 
 res_lasso<-irlasso.cb(X=X, Y=y, lambda=lambda, w.lambda=NULL, beta0=NULL,
-                      centering=FALSE, scaling=FALSE, intercept=F,
+                      centering=FALSE, scaling=FALSE, intercept=T,
                       maxit=10, tol=0.0545, sd.tol=1e-6,
                       verbose=TRUE)
 
 
-coefs_lasso<-res_lasso$BETA
+coefs_lasso<-array(res_lasso$beta[-1,1,1])
+interc_init<-res_lasso$beta[1,1,1]
 beta_main_lasso<-coefs_lasso[range_main]
 beta_2way_lasso<-coefs_lasso[range_theta]
 beta_3way_lasso<-coefs_lasso[range_psi]
@@ -81,7 +87,7 @@ delta_hat<- beta_3way_lasso/beta_3way_lasso_without_delta
 delta_hat[!is.finite(delta_hat)]<-0
 delta_hat[is.nan(delta_hat)]<-0
 
-predict_lasso<-kappa1(X%*%array(coefs_lasso, dim=c(length(coefs_lasso),1) )  ) #no intercept
+predict_lasso<-kappa1(X%*%array(coefs_lasso, dim=c(length(coefs_lasso),1) )  + interc_init  ) #no intercept
 
 print(r2(y, predict_lasso))
 
@@ -136,8 +142,8 @@ all_beta_functions(beta_3way_recovered, beta_3way_lasso_recovered)
 
 ##USE SHIM MODEL #########
 
-lambda_beta<-1e-4
-lambda_gamma<-1e-4
+lambda_beta<-0
+lambda_gamma<-1e-5
 lambda_delta<-1e-4
 
 
@@ -148,10 +154,12 @@ lambda_delta<-1e-4
 
 source(file.path(libs_path,'Shim3way_GLM.R'))
 my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
-fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
-                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-2, compute_Q = Q_bern)
-fitted
-delta_true
+#cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(1e-10,0), lambda_values_2way=c( 1e-5,0), lambda_delta=1e-4,
+                              #intercept=lasso_init, split_percentage = 0.5)
+
+fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, 
+                    w_gamma = 1, w_delta = 1, tol=1e-2, compute_Q = Q_bern, intercept = interc_init, use_intercept = TRUE, bind_C = FALSE)
+#fitted
 my_shim$R2_score(self=fitted, X_new=X, y_true=y )
 
 
@@ -180,9 +188,9 @@ test_hierarchy_layer23(beta_2way_shim_matrix, beta_3way_shim_table, strong = TRU
 beta_2way_shim_matrix<-get_theta_from_theta_vec_2way3(beta_2way_shim,l1=l1,l2=l2, l3=l3)
 beta_3way_shim_table<-get_psi_from_psi_vec3(beta_3way_shim,l1=l1, l2=l2, l3=l3)
 
-beta_main_shim_recovered<- get_all_beta(beta_main_shim, l1=l1, l2=l2, l3=l3, threshold = 1e-4)
-beta_2way_shim_recovered<-  get_theta_vec_2way3( get_all_theta(beta_2way_shim_matrix, l1=l1, l2=l2, l3=l3, threshold = 1e-4), l1=l1+1, l2=l2+1, l3=l3+1)
-beta_3way_shim_recovered<- get_psi_vec3( get_all_psi(beta_3way_shim_table, l1=l1, l2=l2, l3=l3, threshold = 1e-4) , l1=l1+1, l2=l2+1, l3=l3+1)
+beta_main_shim_recovered<- get_all_beta(beta_main_shim, l1=l1, l2=l2, l3=l3, threshold = 0)
+beta_2way_shim_recovered<-  get_theta_vec_2way3( get_all_theta(beta_2way_shim_matrix, l1=l1, l2=l2, l3=l3, threshold = 0), l1=l1+1, l2=l2+1, l3=l3+1)
+beta_3way_shim_recovered<- get_psi_vec3( get_all_psi(beta_3way_shim_table, l1=l1, l2=l2, l3=l3, threshold = 0) , l1=l1+1, l2=l2+1, l3=l3+1)
 
 
 print("results shim recovered")
@@ -194,20 +202,34 @@ all_beta_functions(beta_3way_recovered, beta_3way_shim_recovered)
 
 
 
-##### CIORNA #####
+##### USE PIPELINES #####
+#pipeline lasso
 
-# Create a matrix x with 100 rows and 1 column
-X<- matrix(rnorm(100), ncol = 1)
-
-# Generate the random noise epsilon
-epsilon <- rnorm(100)
-
-# Calculate y as 2*x + epsilon
-y <-kappa1(X*2+epsilon)
+lambda<-0.001
+results_lasso<-results_pipeline_lasso_GLM(X=X, y=y, lambda=lambda, l1=l1, l2=l2, l3=l3, beta_main, beta_2way, beta_3way, beta_main_recovered, beta_2way_recovered, 
+                                      beta_3way_recovered, threshold = 0, strong = TRUE, use_intercept=TRUE)
 
 
-rez_lasso<-irlasso.cb(X=X, Y=y, lambda=0.001, w.lambda=NULL, beta0=NULL,
-                      centering=FALSE, scaling=FALSE, intercept=T,
-                      maxit=100, tol=0.0545, sd.tol=1e-6,
-                      verbose=TRUE)
-rez_lasso$BETA
+beta_main_lasso<- results_lasso$main
+beta_2way_lasso<-results_lasso$'2way'
+beta_3way_lasso<-results_lasso$'3way'
+intercept_lasso<-results_lasso$intercept
+
+
+## pipeline shim
+
+#shim with lasso init
+lambda_beta<-0
+lambda_gamma<-1e-5
+lambda_delta<-1e-4
+
+#beta_main_lasso ==beta_hat
+results_pipeline_shim_GLM(X=X, y=y, beta_main_init = beta_main_lasso, beta_2way_init = beta_2way_lasso, beta_3way_init = beta_3way_lasso, 
+                      lambda_beta = lambda_beta, lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, l1=l1, l2=l2, l3=l3,
+                      beta_main = beta_main, beta_2way = beta_2way, beta_3way = beta_3way , beta_main_recovered = beta_main_recovered, 
+                      beta_2way_recovered = beta_2way_recovered, beta_3way_recovered = beta_3way_recovered, tol=1e-2,intercept=intercept_lasso,
+                      use_intercept=TRUE, bind_C=FALSE, threshold=0)
+
+
+
+
