@@ -8,6 +8,59 @@ source(file.path(libs_path,"helper_functions.R"))
 
 
 
+
+# Define the function
+split_data_safe <- function(X, y, specified_columns, additional_percentage = 0.3) {
+  
+  
+  # Ensure at least one sample from each specified column is in the training set
+  initial_train_indices <- unique(unlist(lapply(specified_columns, function(col) {
+    sample(which(X[, col] == 1), 1)
+  })))
+  print(length(initial_train_indices))
+  
+  # Randomly add some percentage of additional samples with value 1 to the training set
+  additional_indices <- setdiff((1:dim(X)[1]), initial_train_indices)
+  num_additional <- round(length(additional_indices) * additional_percentage)
+  additional_train_indices <- sample(additional_indices, num_additional)
+  
+  # Combine the indices to form the final train indices
+  train_indices <- unique(c(initial_train_indices, additional_train_indices))
+  
+  
+  # Combine indices to form the final train and test sets
+  
+  test_indices <- setdiff( (1:nrow(X) ), train_indices )
+  
+  # Create train and test sets
+  X_train <- X[train_indices, ]
+  X_test <- X[test_indices, ]
+  y_train <- y[train_indices]
+  y_test <- y[test_indices]
+  
+  # Return the results as a list
+  list(X_train = X_train, y_train = y_train, X_test = X_test, y_test = y_test)
+}
+
+
+# Define the function
+split_data_basic <- function(X, y, p = 0.8) {
+  set.seed(42)  # For reproducibility
+  split <- createDataPartition(y, p = p, list = FALSE)
+  
+  # Create train and test sets
+  X_train <- X[split, ]
+  X_test <- X[-split, ]
+  y_train <- y[split]
+  y_test <- y[-split]
+  
+  # Return the results as a list
+  list(X_train = X_train, y_train = y_train, X_test = X_test, y_test = y_test)
+}
+
+
+
+
 psi_value_from_table_position<-function (table,i,j,k)
 {return( (table[i,j,k] + table[i,k,j] + table [j,i,k] +table[j,k,i] + table[k,i,j] + table[k,j,i] )/6)}
 
@@ -618,14 +671,14 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  #print(lambda_delta)
  
  Q_old <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
-                   lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
+                   lambda_beta=0, lambda_gamma=0, lambda_delta=lambda_delta, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
  
  lasso_coef <- coef(lasso_model)
  delta_hat<- lasso_coef[-1]
  
  Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
-                   lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
+                   lambda_beta=0, lambda_gamma=0, lambda_delta=lambda_delta, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
  
  if (Q_new>=Q_old*1.05){
@@ -1452,7 +1505,43 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
   
   return(r2(y_true, y_pred))}
   
-  return(list( fit = fit, predict = predict, R2_score = R2_score, self = self))
+  cross_validation <- function( X, y, lambda_values_main, lambda_values_2way, lambda_delta, intercept, split_percentage = 0.5) {
+    # Split the data
+    #self is big model SHIM_GLM
+    #print(get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)[2])
+    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)[2]) )
+    X_train <- split_result$X_train
+    y_train <- split_result$y_train
+    X_test <- split_result$X_test
+    y_test <- split_result$y_test
+    
+    best_lambda <- NULL
+    best_R2score <- -Inf
+    
+    for (lambda1 in lambda_values_main) {
+      for(lambda2 in lambda_values_2way){
+        
+        # Create and fit the model with the current lambda
+        print(lambda1)
+        fitted <- fit(X=X, y=y, lambda_beta=lambda1, lambda_gamma=lambda2, lambda_delta=lambda_delta, w_beta=1, w_gamma=1, w_delta=1,  tol=1e-2,
+                      max_iter=20, compute_Q=Q_normal)
+        
+        
+        # Compute the R2 score
+        R2 <- R2_score(self=fitted, X_new=X_test, y_true=y_test)
+        
+        # Check if this is the best R2 score so far
+        if (R2 > best_R2score) {
+          best_R2score <- R2
+          best_lambda1 <- lambda1
+          best_lambda2 <- lambda2
+        }}}
+    
+    return(list("best_lambda1" = best_lambda1, "best_lambda2" = best_lambda2, "best_R2score" = best_R2score))
+  }
+  
+  
+  return(list( fit = fit, predict = predict, R2_score = R2_score, self = self, cross_validation=cross_validation))
     
 }
   

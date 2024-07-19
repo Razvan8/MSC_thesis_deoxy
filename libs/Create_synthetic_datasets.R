@@ -859,7 +859,7 @@ create_basic_dataset_not_hier<-function(){
   levs.true <- c("A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
                  "A.4:B.4","A.4:B.4","A.6:B.7","A.3:B.4",
                  "A.5:C.4","A.1:C.2", "A.2:C.1","A.2:C.2",
-                 "B.1:C.1","B.1:C.2", 
+                 "B.1:C.1","B.1:C.2", "B.8:C.8",
                  "A.1:B.1:C.1","A.1:B.1:C.2","A.4:B.1:C.1", "A.7:B.3:C.2")
   
   beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
@@ -995,6 +995,96 @@ create_basic_dataset_bern<-function(){
 }
 
 
+set.seed(1)
+create_basic_dataset_bern_nothier<-function(){
+  set.seed(1)
+  x.3w <- dummy.matrix(NF=3, NL=c(9,9,5))
+  l1=8
+  l2=8
+  l3=4
+  col_mains<-colnames(x.3w)[c(1:(l1+l2+l3))]
+  #print(col_mains)
+  col_psi<-colnames(x.3w)[c ( (l1+l2+l3+ l1*l2+ l2*l3 + l1*l3 + 1): (l1+l2+l3+ l1*l2+ l2*l3+ +l1*l3+ l1*l2*l3) )]
+  col_theta_good<-c()
+  for (i in c(1:l1)) {
+    for (j in c(1:l2)) {
+      # Create the string and append to the vector
+      col_theta_good <- c(col_theta_good, paste0("A.", i, ":B.", j))
+    }
+    for(k in c(1:l3))
+    {col_theta_good <- c(col_theta_good, paste0("A.", i, ":C.", k))}
+  }
+  for (j in c(1:l2))
+  {for(k in c(1:l3))
+  {col_theta_good <- c(col_theta_good, paste0("B.", j, ":C.", k))}
+  }
+  #print(col_theta_good)
+  col_all_good=c(col_mains,col_theta_good,col_psi)
+  #print(col_all_good)
+  # Hierarchical Coefficients (2way)
+  p.3w <- ncol(x.3w)
+  n.3w <- p.3w + 1
+  beta.min <- 0.5
+  beta.max <- 3
+  beta.true <- data.frame(rep(0, n.3w))
+  rownames(beta.true) <- c("interc", colnames(x.3w))
+  colnames(beta.true) <- c("coeffs")
+  set.seed(2)
+  
+  
+  
+  # Number of samples from each range
+  #n_high <- round(n.3w * 0.4)
+  #n_low <- n.3w - n_high
+  #high_samples <- runif(n_high, min=0.5, max=1)
+  #low_samples <- runif(n_low, min=0.1, max=0.5)
+  #biased_sample <- c(high_samples, low_samples)
+  #biased_sample <- sample(biased_sample, length(biased_sample))
+  #biased_sample <- biased_sample * sample(c(1, 1), size=n.3w, replace=TRUE)
+  
+  #n_positive <- round(0.2 * n.3w)
+  #n_negative <- n.3w - n_positive
+  #sign_sample <- c(rep(1, n_positive), rep(-1, n_negative))
+  #biased_sample <- sample(biased_sample * sign_sample, size = n.3w, replace = TRUE)
+  
+  #beta.true$coeffs<-biased_sample
+  
+  
+  
+  #beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
+  beta.true$coeffs <- (rnorm(n.3w, 1, 0.2)+runif(n.3w, beta.min, beta.max)) *sample(c(1,-1),size=n.3w,replace=TRUE)
+  
+  levs.true <- c("A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
+                 "A.4:B.4","A.4:B.4","A.6:B.7","A.3:B.4",
+                 "A.5:C.4","A.1:C.2", "A.2:C.1","A.2:C.2",
+                 "B.1:C.1","B.1:C.2", "B.8:C.8",
+                 "A.1:B.1:C.1","A.1:B.1:C.2","A.4:B.1:C.1", "A.7:B.3:C.2")
+  
+  beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
+  beta.true_new <- beta.true[c("interc", col_all_good), , drop=FALSE ]
+  #print("new beta true")
+  #print(beta.true_new)
+  rownames(beta.true_new)<-c("interc", col_all_good)
+  #beta.true
+  #print(beta.true)
+  # Response vector (2way)
+  sigma.y <- 0.5
+  y.3w <- data.frame(row.names=rownames(x.3w))
+  set.seed(123)
+  print(mean(beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] ))
+  y.3w$obs <- kappa1(beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] + rnorm(nrow(y.3w), -5, sigma.y) ) #get bern
+  y.3w$true <- kappa1( beta.true$coeffs[1] + as.matrix(x.3w)%*%as.vector(beta.true$coeffs)[-1] ) #get bern
+  #print(colnames(x.3w))
+  x.3w_new<-x.3w[,col_all_good ,drop=FALSE]
+  
+  if(all(rownames(beta.true_new)[-1]==colnames(x.3w_new)) ==TRUE)
+  {print("Data loaded properly")}
+  print("SNR:")
+  print(var(as.vector(y.3w$true))/ (sigma.y^2) )
+  #print("newcolnames")
+  #print(colnames(x.3w_new))
+  return(list('X'=as.matrix(x.3w_new), 'y'=y.3w, 'beta'=beta.true_new))
+}
 
 
 

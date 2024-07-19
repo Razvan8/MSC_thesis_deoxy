@@ -291,6 +291,15 @@ kappa2 <- function(x) {
   return(k2)
 }
 
+
+g.link <- function(x) {
+  tt <- apply(as.matrix(x), 1, FUN=function(v) min(max(v,0.001),0.999))
+  g <- 3.5*tan(pi*(2*tt-1)/2) 
+  return(g)
+}
+
+
+
 irlasso.cb <- function(X, Y, lambda, w.lambda=NULL, beta0=NULL,
                        centering=TRUE, scaling=TRUE, intercept=TRUE,
                        maxit=10, tol=0.0545, sd.tol=1e-6,
@@ -506,6 +515,53 @@ irlasso.cb <- function(X, Y, lambda, w.lambda=NULL, beta0=NULL,
               R=R,
               it=it.stop))
 }
+
+
+
+
+
+###crossval LASSO
+cross_validation_irlasso.cb <- function( X, y, lambda_values, l1,l2,l3, split_percentage = 0.5) {
+  # Split the data
+  #self is big model SHIM_GLM
+  set.seed(123)
+  split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=l1, l2=l2, l3=l3)[2]) )
+  X_train <- split_result$X_train
+  y_train <- split_result$y_train
+  X_test <- split_result$X_test
+  y_test <- split_result$y_test
+  
+  best_lambda <- NULL
+  best_R2score <- -Inf
+  
+  for (lambda in lambda_values) {
+    print(lambda)
+      
+    res_lasso<-irlasso.cb(X=X_train, Y=y_train, lambda=lambda, w.lambda=NULL, beta0=NULL,
+                          centering=FALSE, scaling=FALSE, intercept=T,
+                          maxit=10, tol=0.0545, sd.tol=1e-6,
+                          verbose=F)
+    
+    
+    
+    
+    coefs_lasso<-array(res_lasso$beta[-1,1,1])
+    interc<-res_lasso$beta[1,1,1]
+    pred_test<-kappa1(interc+X_test%*%coefs_lasso)
+    
+      
+      # Compute the R2 score
+      R2 <- r2(y_test, pred_test)
+      
+      # Check if this is the best R2 score so far
+      if (R2 > best_R2score) {
+        best_R2score <- R2
+        best_lambda <- lambda
+      }}
+  
+  return(list("best_lambda" = best_lambda,  "best_R2score" = best_R2score))
+}
+
 
 
 
@@ -1053,7 +1109,7 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  beta0<-0*delta_hat#init beta 0 good
  beta0<-c(beta0,1)
  Q_old <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
-                   lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
+                   lambda_beta=0, lambda_gamma=0, lambda_delta=lambda_delta  , 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
  if (bind_C==TRUE){
  lasso_rez<-irlasso.cb(X=X_tilde, Y=y_tilde, lambda=lambda_delta, w.lambda=NULL, beta0=beta0,
@@ -1075,7 +1131,7 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  }
  
  Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
-                   lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
+                   lambda_beta=0, lambda_gamma=0, lambda_delta=lambda_delta, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
  cat(" try delta: new- old: ", Q_new -Q_old)
  
@@ -2282,6 +2338,95 @@ results_pipeline_shim_GLM<-function(X, y, beta_main_init, beta_2way_init, beta_3
 #                      lambda_beta = lambda_beta, lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, l1=l1, l2=l2, l3=l3,
 #                      beta_main = beta_main, beta_2way = beta_2way, beta_3way = beta_3way , beta_main_recovered = beta_main_recovered, 
 #                      beta_2way_recovered = beta_2way_recovered, beta_3way_recovered = beta_3way_recovered, tol=1e-3, threshold = 1)
+
+
+
+
+
+#use it on y_centered
+results_pipeline_pls_GLM<-function(X, y, n_comp, l1, l2, l3,
+                               beta_main, beta_2way, beta_3way, beta_main_recovered, 
+                               beta_2way_recovered, beta_3way_recovered, threshold = 0, strong = TRUE){
+  
+  
+  
+  range_main<-c(1: (l1+l2+l3) )
+  range_theta<-c( (l1+l2+l3+1) : (l1+l2+l3+l1*(l2+l3)+l2*l3) )
+  range_psi<-c(  (l1+l2+l3+ 1+ l1*(l2+l3)+l2*l3): (l1+l2+l3+ l1*(l2+l3)+l2*l3+l1*l2*l3) )
+  
+  
+  pls_model <- plsr(g.link(y) ~ X, ncomp =  n_comp, scale = FALSE)
+  
+  print(coefficients((pls_model)))
+  coefs_pls<-coefficients(pls_model)[-1]
+  interc_pls<-coefficients(pls_model)[1]
+  beta_main_pls<-coefs_pls[range_main]
+  beta_2way_pls<-coefs_pls[range_theta]
+  beta_3way_pls<-coefs_pls[range_psi]
+  beta_2way_pls_without_gamma<-get_beta_vec_2way(beta_main_pls,l1=l1,l2=l2,l3=l3,only_beta = TRUE)
+  beta_3way_pls_without_delta<- get_beta_vec_3way(beta_2way_pls, l1=l1, l2=l2, l3=l3, only_beta = TRUE)
+  
+  predict_pls<- kappa1(predict(pls_model, newdata = X)[,,n_comp])
+  cat("R2 pls: ", r2(y, predict_pls))
+  plot(predict_pls, y)
+  print(noquote(""))
+  
+  
+  ######################### RESULTS pls #########################################################
+  print("------------------ results pls without recovered -------------------")
+  all_beta_functions(beta_main, beta_main_pls)
+  print(noquote(""))
+  all_beta_functions(beta_2way, beta_2way_pls)
+  print(noquote(""))
+  all_beta_functions(beta_3way, beta_3way_pls)
+  print(noquote(""))
+  
+  
+  ##hierarchy tests
+  
+  beta_2way_pls_matrix<-get_theta_from_theta_vec_2way3(beta_2way_pls,l1=l1,l2=l2, l3=l3)
+  beta_3way_pls_table<-get_psi_from_psi_vec3(beta_3way_pls,l1=l1,l2=l2, l3=l3)
+  
+  test_hierarchy_layer12(beta_main_pls,beta_2way_pls_matrix, strong = strong)
+  print(noquote(""))
+  test_hierarchy_layer23(beta_2way_pls_matrix, beta_3way_pls_table, strong = strong)
+  print(noquote(""))
+  
+  
+  ##### RESULTS PLS ON RECOVERED PARAMS ##########
+  
+  beta_main_pls_recovered<- get_all_beta(beta_main_pls, l1=l1, l2=l2, l3=l3, threshold = threshold)
+  beta_2way_pls_recovered<-  get_theta_vec_2way3(  get_all_theta(beta_2way_pls_matrix, l1=l1, l2=l2, l3=l3, threshold = threshold), l1=l1+1, l2=l2+1, l3=l3+1)
+  beta_3way_pls_recovered<- get_psi_vec3( get_all_psi(beta_3way_pls_table, l1=l1, l2=l2, l3=l3, threshold = threshold) , l1=l1+1, l2=l2+1, l3=l3+1)
+  
+  
+  #beta_main_pls
+  #beta_main_pls_recovered
+  
+  print("--------------------- results pls recovered ------------------------")
+  all_beta_functions(beta_main_recovered, beta_main_pls_recovered)
+  print(noquote(""))
+  all_beta_functions(beta_2way_recovered, beta_2way_pls_recovered)
+  print(noquote(""))
+  all_beta_functions(beta_3way_recovered, beta_3way_pls_recovered)
+  print(noquote(""))
+  
+  
+  test_hierarchy_layer12(beta_main_pls_recovered, get_theta_from_theta_vec_2way3( beta_2way_pls_recovered, l1=l1+1, l2=l2+1, l3=l3+1 ), strong = strong)
+  print(noquote(""))
+  test_hierarchy_layer23( get_theta_from_theta_vec_2way3( beta_2way_pls_recovered, l1=l1+1, l2=l2+1, l3=l3+1), 
+                          get_psi_from_psi_vec3(beta_3way_pls_recovered,l1=l1+1,l2=l2+1, l3=l3+1), strong = strong)
+  
+  return (list("intercept" = interc_pls, "main"= beta_main_pls , '2way' = beta_2way_pls, '3way' = beta_3way_pls))
+  
+  
+}
+
+
+#n_comp=6
+#results_pipeline_pls(X=X, y=y_centered, n_comp=n_comp, l1=l1, l2=l2, l3=l3, beta_main, beta_2way, beta_3way, beta_main_recovered, beta_2way_recovered, 
+#                     beta_3way_recovered, threshold = 0, strong = TRUE)
+
 
 
 

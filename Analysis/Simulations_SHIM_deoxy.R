@@ -31,6 +31,10 @@ X_data<-data[c('a','b','s')]
 X_data <- lapply(X_data, as.factor)
 X_data <- as.data.frame(X_data)  # Convert back to data frame
 
+unique(X_data$a)
+unique(X_data$b)
+unique(X_data$s)
+
 
 # Create the dummy matrix without intercept
 X_dummy <- model.matrix(~ . - 1, data = X_data, contrasts.arg = lapply(X_data, contrasts, contrasts = FALSE))
