@@ -742,10 +742,10 @@ create_hier_dataset_paper_many_main_vary_interactions_2way<-function(magnitude_s
 set.seed(455)
 create_basic_dataset<-function(){
   set.seed(455)
-  x.3w <- dummy.matrix(NF=3, NL=c(9,9,5))
+  x.3w <- dummy.matrix(NF=3, NL=c(9,8,7))
   l1=8
-  l2=8
-  l3=4
+  l2=7
+  l3=6
   col_mains<-colnames(x.3w)[c(1:(l1+l2+l3))]
   #print(col_mains)
   col_psi<-colnames(x.3w)[c ( (l1+l2+l3+ l1*l2+ l2*l3 + l1*l3 + 1): (l1+l2+l3+ l1*l2+ l2*l3+ +l1*l3+ l1*l2*l3) )]
@@ -777,11 +777,11 @@ create_basic_dataset<-function(){
   beta.true$coeffs <- runif(n.3w, beta.min, beta.max)*sample(c(1,-1),size=n.3w,replace=TRUE)
   
   
-  levs.true <- c("A.1", "A.2", "A.3","A.4",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
+  levs.true <- c("A.1", "A.2", "A.3","A.4", "A.5", "A.6",  "B.1", "B.2","B.3", "C.1", "C.2","C.3",
                  "A.1:B.1","A.1:B.2","A.2:B.1","A.2:B.2",
                  "A.1:C.1","A.1:C.2", "A.2:C.1","A.2:C.2",
-                 "B.1:C.1","B.1:C.2", "B.2:C.1", 
-                 "A.1:B.1:C.1","A.1:B.1:C.2","A.2:B.1:C.1", "A.2:B.2:C.1")
+                 "B.1:C.1","B.1:C.2", "B.2:C.1", "B.2:C.2", "B.3:C.1","B.3:C.2", "A.6:C.1", "A.6:C.2",  "A.5:B.1","A.5:B.2",  "A.4:B.1", "A.4:C.3",
+                 "A.1:B.1:C.1","A.1:B.1:C.2","A.2:B.1:C.1", "A.2:B.2:C.1", "A.2:B.2:C.2")
   
   beta.true$coeffs[which(!is.element(rownames(beta.true),levs.true))] <- 0
   beta.true_new <- beta.true[c("interc", col_all_good), , drop=FALSE ]

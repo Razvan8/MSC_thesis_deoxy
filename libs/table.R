@@ -191,9 +191,15 @@ colnames(df.yields) <- df.yields.colnames
 coef.plsglm.all <- read.table(file="../Results/coefs_shim_deoxy_table1.txt") ##read coefs as here suitable form!!!!!!
 beta.hat.plsglm.all <- coef.plsglm.all[,2]
 eta.hat.plsglm.all <- as.vector(as.matrix(xxx.all)%*%beta.hat.plsglm.all[-1]+beta.hat.plsglm.all[1]) ### TAKE CARE TO MAKE xxx.all
-mu.hat.plsglm.all <- kappa1(eta.hat.plsglm.all)                   
+mu.hat.plsglm.all <- kappa1(eta.hat.plsglm.all)      
 
-print(r2(y.all, mu.hat.plsglm.all))
+coef_not_interc<-coef.plsglm.all[-1,2]
+
+print(sum(coef_not_interc[range_main]==0)/length(coef_not_interc[range_main]) )
+print(sum(coef_not_interc[range_theta]==0)/length(coef_not_interc[range_theta]) )
+print(sum(coef_not_interc[range_psi]==0)/length(coef_not_interc[range_psi]) )
+
+print(r2(y.all[,1], mu.hat.plsglm.all))
 
 # Get top yields
 n.yield.max <- length(y.all[,1])
@@ -346,4 +352,4 @@ gc()
 write.table(df.yields, file=paste("../Results/yield_table_deoxy.txt",sep=""), sep=",", row.names=FALSE, col.names=TRUE)
 
 
-X_data[which(y==97),]
+X_data[which(y>97.3),]

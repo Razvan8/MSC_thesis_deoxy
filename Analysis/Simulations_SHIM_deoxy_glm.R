@@ -166,8 +166,8 @@ sum(beta_3way_lasso==0)/length(beta_3way_lasso)
 ##USE SHIM MODEL #########
 
 lambda_beta<-7e-5
-lambda_gamma<-6e-4
-lambda_delta<-7e-5
+lambda_gamma<-4e-4+1e-5
+lambda_delta<-1e1
 
 
 
@@ -176,7 +176,9 @@ lambda_delta<-7e-5
 #delta_true
 
 source(file.path(libs_path,'Shim3way_GLM.R'))
-my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
+my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat*0, l1=l1, l2=l2, l3=l3, scale = FALSE)
+cv<-my_shim$cross_validation(X=X,y=y, lambda_values_main = c(lambda_beta),
+                             lambda_values_2way = c(lambda_gamma), lambda_delta = lambda_delta, intercept=interc_init, split_percentage = 0.6)
 fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, 
                     w_gamma = 1, w_delta = 1, tol=5e-3, compute_Q = Q_bern, intercept = interc_init, use_intercept = TRUE)
 #fitted
