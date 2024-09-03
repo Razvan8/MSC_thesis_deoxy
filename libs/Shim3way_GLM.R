@@ -7,10 +7,10 @@ source(file.path(libs_path,"Create_synthetic_datasets.R"))
 source(file.path(libs_path,"helper_functions.R"))
 
 # Define the function
-split_data_safe <- function(X, y, specified_columns, additional_percentage = 0.3) {
+split_data_safe <- function(X, y, specified_columns, additional_percentage = 0.3, seed=1) {
   
-  
-  # Ensure at least one sample from each specified column is in the training set
+  set.seed(seed)
+  # Ensure at least one sample with 1 from each specified column is in the training set
   initial_train_indices <- unique(unlist(lapply(specified_columns, function(col) {
     sample(which(X[, col] == 1), 1)
   })))
@@ -19,6 +19,8 @@ split_data_safe <- function(X, y, specified_columns, additional_percentage = 0.3
   # Randomly add some percentage of additional samples with value 1 to the training set
   additional_indices <- setdiff((1:dim(X)[1]), initial_train_indices)
   num_additional <- round(length(additional_indices) * additional_percentage)
+  
+  set.seed(seed)
   additional_train_indices <- sample(additional_indices, num_additional)
   
   # Combine the indices to form the final train indices
@@ -522,48 +524,56 @@ irlasso.cb <- function(X, Y, lambda, w.lambda=NULL, beta0=NULL,
 
 
 
-
-
-###crossval LASSO
-cross_validation_irlasso.cb <- function( X, y, lambda_values, l1,l2,l3, split_percentage = 0.5) {
-  # Split the data
-  #self is big model SHIM_GLM
-  set.seed(123)
-  split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=l1, l2=l2, l3=l3)[2]) )
-  X_train <- split_result$X_train
-  y_train <- split_result$y_train
-  X_test <- split_result$X_test
-  y_test <- split_result$y_test
-  
+cross_validation_irlasso.cb <- function(X, y, lambda_values, l1, l2, l3, k = 3, split_percentage = 0.5) {
   best_lambda <- NULL
   best_R2score <- -Inf
+  lambda_scores <- numeric(length(lambda_values))
   
-  for (lambda in lambda_values) {
-    print(lambda)
+  # Perform k random splits
+  for (i in 1:k) {
+    # Split the data
+     # Change seed for each split to ensure different splits
+    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns=unlist(get_ranges(l1=l1, l2=l2, l3=l3)[2]), seed=i)
+    X_train <- split_result$X_train
+    y_train <- split_result$y_train
+    X_test <- split_result$X_test
+    y_test <- split_result$y_test
+    j=0
+    for (lambda in lambda_values) {
+      j<-j+1
+      print(lambda)
       
-    res_lasso<-irlasso.cb(X=X_train, Y=y_train, lambda=lambda, w.lambda=NULL, beta0=NULL,
-                          centering=FALSE, scaling=FALSE, intercept=T,
-                          maxit=10, tol=0.0545, sd.tol=1e-6,
-                          verbose=F)
-    
-    
-    
-    
-    coefs_lasso<-array(res_lasso$beta[-1,1,1])
-    interc<-res_lasso$beta[1,1,1]
-    pred_test<-kappa1(interc+X_test%*%coefs_lasso)
-    
+      res_lasso <- irlasso.cb(X=X_train, Y=y_train, lambda=lambda, w.lambda=NULL, beta0=NULL,
+                              centering=FALSE, scaling=FALSE, intercept=T,
+                              maxit=10, tol=0.0545, sd.tol=1e-6,
+                              verbose=F)
+      
+      coefs_lasso <- array(res_lasso$beta[-1,1,1])
+      interc <- res_lasso$beta[1,1,1]
+      pred_test <- kappa1(interc + X_test %*% coefs_lasso)
+      plot(pred_test, y_test, xlab = "Predicted yield", ylab = "True yield", main = "Predicted vs true yield")
+      abline(a = 0, b = 1, col = "red")
+      
       
       # Compute the R2 score
       R2 <- r2(y_test, pred_test)
       
-      # Check if this is the best R2 score so far
-      if (R2 > best_R2score) {
-        best_R2score <- R2
-        best_lambda <- lambda
-      }}
+      # Store the R2 score for the current lambda
+      lambda_scores[j] <- lambda_scores[j] + R2
+    }
+  }
   
-  return(list("best_lambda" = best_lambda,  "best_R2score" = best_R2score))
+  # Average the scores across the k splits
+  lambda_scores <- lambda_scores / k
+  
+  # Find the best lambda
+  best_index <- which.max(lambda_scores)
+  best_lambda <- lambda_values[best_index]
+  best_R2score <- lambda_scores[best_index]
+  print(lambda_values)
+  print(lambda_scores)
+  
+  return(list("best_lambda" = best_lambda, "best_R2score" = best_R2score))
 }
 
 
@@ -969,12 +979,12 @@ Q_bern<-function(X,y, beta, gamma_vec, delta_vec, lambda_beta, lambda_gamma, lam
   #def log like: sum(y*(Xbeta)-k(Xbeta))
   #v=g_normal(X=X, beta=beta, gamma_vec = gamma_vec, delta_vec = delta_vec, l1=l1, l2=l2, l3=l3, already_multiplied = already_multiplied) #Xbeta
   v=X%*%beta+intercept
-  cat(y*v[1:5], '    aa   ', kappa0(v)[1:5], '   bbbb   ')
+  #cat(y*v[1:5], '    aa   ', kappa0(v)[1:5], '   bbbb   ')
   log.like<-sum(y*v-kappa0(v))
   if(scaled==TRUE) ############# CHECK THIS ###########################
   {log.like<-log.like/(2*dim(X)[1])}
   loss<- -log.like+penalty_beta+penalty_gamma+penalty_delta
-  cat("log.like,", log.like, '  ',penalty_beta,' ',penalty_gamma,' ',penalty_delta )
+  #cat("log.like,", log.like, '  ',penalty_beta,' ',penalty_gamma,' ',penalty_delta )
   return(loss)
 }
 
@@ -1123,7 +1133,7 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
             verbose=F)
  #print(dim(delta_hat))
  lasso_coef <- array(lasso_rez$BETA, dim= length(lasso_rez$BETA) )
- cat("lasso coef: ", lasso_coef)
+ #cat("lasso coef: ", lasso_coef)
  delta_hat<- lasso_coef[-length(lasso_coef)]# last is coef for all other factors including intercept
  }
  else{
@@ -1138,10 +1148,10 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  Q_new <- Q_bern(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                    lambda_beta=0, lambda_gamma=0, lambda_delta=lambda_delta, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
- cat(" try delta: new- old: ", Q_new -Q_old)
+ #cat(" try delta: new- old: ", Q_new -Q_old)
  
  if ( Q_new-Q_old >abs(Q_old)*1e-10){
-   delta_hat<-delta_hat_old
+   delta_hat<-delta_hat_old #keep the odl one
    print("There might be numerical instability in update delta which was taken care of by using old delta. ")
    cat("Actually new-old = 0")
  }
@@ -1315,8 +1325,8 @@ for(i in range1){
     
     #if (Q_new-Q_old >=0)
     #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
-    print("gamma")
-    print(Q_new-Q_old)
+    #print("gamma")
+    #print(Q_new-Q_old)
     if ( Q_new-Q_old >abs(Q_old)*1e-2){
       print("There might be numerical instability in update gamma.")
     }
@@ -1404,8 +1414,8 @@ for(i in range1){
                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
      
      #if (Q_new-Q_old >=0)
-     print("gamma")
-     print(Q_new-Q_old)
+     #print("gamma")
+     #print(Q_new-Q_old)
      #cat(" new-old, old delta: ", Q_new-Q_old, " ", Q_old)
      if ( Q_new-Q_old >abs(Q_old)*1e-10){
        print("There might be numerical instability in update gamma.")
@@ -1491,8 +1501,8 @@ for(i in range1){
                      lambda_beta=0, lambda_gamma=lambda_gamma, lambda_delta=0, 
                      w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE, intercept = intercept)
      #if (Q_new-Q_old >=0)
-     print("gamma")
-     print( Q_new-Q_old)
+     #print("gamma")
+     #print( Q_new-Q_old)
      if ((Q_new-Q_old)> abs(Q_old)*1e-3 )
      {print("There might be numerical instability in gamma.")
        }
@@ -2013,7 +2023,7 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
                        lambda_beta=lambda_beta, lambda_gamma=lambda_gamma, lambda_delta=lambda_delta,
                        w_beta =w_beta, w_gamma=w_gamma, w_delta=w_delta,l1=self$l1, l2=self$l2, l3=self$l3, intercept = intercept)
       print("-----------------------Q_new---------------------------------------")
-      print(Q_new)
+      #print(Q_new)
       if(Q_new ==Q_old) #rel dif 0 instead of nan
       {#cat("beta_hat: ", beta_hat)
         self$beta_hat<-beta_hat
@@ -2080,19 +2090,23 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
   if (verbose == TRUE)
   {cat ("r2 score is ", r2(y_true, y_pred))
     #cat(length(y_true), ' ', length(y_pred))
-    plot(array(y_pred), array(y_true), xlab = "Prediction", ylab = "True")}
+    plot(y_pred, y_true, xlab = "Predictions", ylab = "True Values", main = "Predictions vs True Values")
+    abline(a = 0, b = 1, col = "red")}
+  
   
   return(r2(y_true, y_pred))}
   
   
-  cross_validation <- function( X, y, lambda_values_main, lambda_values_2way, lambda_delta, intercept, split_percentage = 0.5, verbose=TRUE) {
+  cross_validation <- function( X, y, lambda_values_main, lambda_values_2way, lambda_delta, intercept, split_percentage = 0.5, verbose=TRUE, k=3) {
     # Split the data
     #self is big model SHIM_GLM
     ranges<-get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)
     range_main<- unlist(ranges[1])
     range_teta<- unlist(ranges[2])
     range_psi<- unlist(ranges[3])
-    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)[2]) )
+    R2_scores <- matrix(0, nrow = length(lambda_values_main), ncol = length(lambda_values_2way))
+    for (i in 1:k) {
+    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=self$l1, l2=self$l2, l3=self$l3)[2]), seed=i )
     X_train <- split_result$X_train
     y_train <- split_result$y_train
     X_test <- split_result$X_test
@@ -2101,8 +2115,10 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
     best_lambda <- NULL
     best_R2score <- -Inf
     
-    for (lambda1 in lambda_values_main) {
-      for(lambda2 in lambda_values_2way){
+    for (j in 1:length(lambda_values_main)) {
+      lambda1 <- lambda_values_main[j]
+      for (l in 1:length(lambda_values_2way)) {
+        lambda2 <- lambda_values_2way[l]
 
       # Create and fit the model with the current lambda
       fitted <- fit(X=X_train, y=y_train, lambda_beta=lambda1, lambda_gamma=lambda2, lambda_delta=lambda_delta, w_beta=1, w_gamma=1, w_delta=1,  tol=1e-2,
@@ -2114,14 +2130,18 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
 
       
       # Compute the R2 score
-      R2 <- R2_score(self=fitted, X_new=X_test, y_true=y_test)
+      R2_scores[j,l] <- R2_scores[j,l]+  R2_score(self=fitted, X_new=X_test, y_true=y_test) }} }
       
-      # Check if this is the best R2 score so far
-      if (R2 > best_R2score) {
-        best_R2score <- R2
-        best_lambda1 <- lambda1
-        best_lambda2 <- lambda2
-      }}}
+    # Average the R2 scores over all k splits
+    R2_scores <- R2_scores / k
+    
+    # Find the best lambda combination with the highest average R2 score
+    best_index <- which(R2_scores == max(R2_scores), arr.ind = TRUE)
+    best_lambda1 <- lambda_values_main[best_index[1]]
+    best_lambda2 <- lambda_values_2way[best_index[2]]
+    best_R2score <- R2_scores[best_index[1], best_index[2]]
+    
+    print(R2_scores)
     
     return(list("best_lambda1" = best_lambda1, "best_lambda2" = best_lambda2, "best_R2score" = best_R2score))
   }

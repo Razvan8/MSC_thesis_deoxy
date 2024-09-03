@@ -1,6 +1,6 @@
 libs_path<-file.path("..","libs")
 source(file.path(libs_path,'helper_functions.R'))
-source(file.path(libs_path,'Shim3way_class.R'))
+source(file.path(libs_path,'Shim3way_class_sc_loss.R'))
 source(file.path(libs_path,'hierarchy_tests.R'))
 source(file.path(libs_path,'recover_parameters.R'))
 
@@ -114,14 +114,15 @@ y_centered<-y-mean(y)
 class(y_centered)
 ####START LASSO
 
-cv_fit <- cv.glmnet(X, y_centered, alpha = 1)
+cv_fit <- cv.glmnet(X, y_centered, alpha = 1, intercept =FALSE, standardize=FALSE)
 
 best_lambda <- cv_fit$lambda.min
 cat("best lambda: ",best_lambda)
 #best_lambda<-0.1
 lasso_model <- glmnet(X, y_centered, alpha = 1, intercept = FALSE, standardize = FALSE, lambda=best_lambda)
 y_pred<-predict(lasso_model, newx=X)
-plot(y_pred, y_centered, col=2)
+plot((y_pred+mean(y))/100, (y_centered+mean(y))/100, xlab = "Predicted yield", ylab = "True yield", main = "Predicted vs true yield")
+abline(a = 0, b = 1, col = "red")
 r2(y_centered, y_pred)
 mean((y_centered-y_pred)^2)
 #init for shim
@@ -156,16 +157,39 @@ delta_hat[is.nan(delta_hat)]<-0
 
 
 
-lambda_beta<-350
-lambda_gamma<-18000
-lambda_delta<-900
 
 
 my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
+#Initial large search
+cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(0.01,0.1), lambda_values_2way=c( 0.1, 1), lambda_delta=1, split_percentage = 0.6, k=3)
+
+#cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(0.15, 0.2, 0.4), lambda_values_2way=c( 0.6,0.8), lambda_delta=1, split_percentage = 0.6, k=3)
+
+
+#Final search
+#cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c( 0.01, 0.001), lambda_values_2way=c( 0.001,0.1), lambda_delta=1, split_percentage = 0.6, k=3)
+
+lambda_beta<-cv$best_lambda1
+lambda_gamma<-cv$best_lambda2
+lambda_delta<-1
+
+lambda_beta<-0.05
+lambda_gamma<-0.1
+lambda_delta<-1
+
+
 fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
-                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-3)
+                    lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-2)
+
+###PLOT FOR THESIS
+y_scaled<-y/100
+y_pred<-my_shim$predict(self=fitted, X_new=X, mean_y = mean(y))/100
+plot(y_pred, y_scaled, xlab = "Predicted yield", ylab = "True yield", main = "Predicted vs true yield")
+abline(a = 0, b = 1, col = "red")
+####
 
 my_shim$R2_score(self=fitted, X_new=X, y_true=y )
+
 
 beta_all_shim<-fitted$beta_all
 beta_main_shim<-beta_all_shim[range_main]

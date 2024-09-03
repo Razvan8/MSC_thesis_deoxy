@@ -677,6 +677,7 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  Q_old <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                    lambda_beta=0, lambda_gamma=0, lambda_delta=lambda_delta, 
                    w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
+ delta_hat_old<-delta_hat
  
  lasso_coef <- coef(lasso_model)
  delta_hat<- lasso_coef[-1]
@@ -688,8 +689,8 @@ update_delta<-function(X, y,beta_hat, gamma_hat, delta_hat, lambda_delta, l1, l2
  if (Q_new>=Q_old*1.05){
    print("There might be numerical instability in update delta.")
  }
- if (Q_new>=Q_old*1.01){
-   print("There might be numerical insignificant numerical instability in update delta.")
+ if (Q_new>=Q_old){
+   delta_hat<-delta_hat_old
  }
  return(delta_hat)
  
@@ -961,7 +962,6 @@ for(i in range1){
                        lambda_beta=1, lambda_gamma=lambda_gamma, lambda_delta=1, 
                        w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
      
-     
      gamma_hat[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3)]<- lasso_1d_closed_form(X=X_tilde, y= y_tilde,
                                                                                                          lambda= lambda_gamma, w=w[matrix_position_to_vector_index_2way(c(j,k), l1=l1, l2=l2, l3=l3) ] )
 
@@ -973,7 +973,7 @@ for(i in range1){
                        w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
      #if (Q_new-Q_old >=0)
      #cat(" new-old: ",Q_new-Q_old, " Q: ",Q_new)
-     if (Q_new-Q_old >= Q_old/100)
+     if (Q_new-Q_old >= Q_old/1000)
      {print("There might be numerical instability in gamma.")
        }
      
@@ -1157,7 +1157,7 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
     Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                       lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
-    if (Q_new-Q_old >= Q_old/100)
+    if (Q_new-Q_old > 0)
     {print("There might be numerical instability in beta")
       beta_hat[i]<-beta_hat_old
       return(beta_hat)}
@@ -1251,7 +1251,7 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
     Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                       lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                       w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
-    if (Q_new-Q_old >= Q_old/100)
+    if (Q_new-Q_old >0)
     {print("There might be numerical instability in beta.")
       beta_hat[j]<-beta_hat_old
       return(beta_hat)}
@@ -1334,7 +1334,7 @@ update_beta <- function(X, y, beta_hat, gamma_hat, delta_hat, lambda_beta, l1, l
       Q_new <- Q_normal(X=X,y=y, beta=beta_hat, gamma_vec=gamma_hat, delta_vec=delta_hat, 
                         lambda_beta=lambda_beta, lambda_gamma=0, lambda_delta=0, 
                         w_beta=1, w_gamma=1, w_delta=1,l1=l1,l2=l2,l3=l3, already_multiplied=TRUE)
-      if (Q_new-Q_old >= Q_old/100)
+      if (Q_new-Q_old > 0)
       {print("There might be numerical instability in beta.")
         beta_hat[k]<-beta_hat_old
         return(beta_hat)}
@@ -1505,7 +1505,8 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
   if (verbose == TRUE)
   {cat ("r2 score is ", r2(y_true, y_pred))
     cat(length(y_true), ' ', length(y_pred))
-    plot(array(y_pred), array(y_true))}
+    plot(y_pred, y_true, xlab = "Predictions", ylab = "True Values", main = "Prediction vs True Values")
+    abline(a = 0, b = 1, col = "red")}
   
   return(r2(y_true, y_pred))}
   

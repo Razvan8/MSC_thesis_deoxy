@@ -112,14 +112,19 @@ y<-y/100 ############# only once
 
 ####START LASSO
 
-lambda=5e-4
 
+cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 1e-3, 6e-4, 3e-4, 1e-4, 6e-5), l1=l1,l2=l2,l3=l3, split_percentage = 0.6, k=4)
+cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 1e-3, 6e-4, 3e-4, 1e-4, 6e-5), l1=l1,l2=l2,l3=l3, split_percentage = 0.6, k=4)
+
+##CV FOR PLOT
+cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 3e-4), l1=l1,l2=l2,l3=l3, split_percentage = 0.6, k=4)
+
+lambda=3e-4
 res_lasso<-irlasso.cb(X=X, Y=y, lambda=lambda, w.lambda=NULL, beta0=NULL,
                       centering=FALSE, scaling=FALSE, intercept=T,
                       maxit=10, tol=0.0545, sd.tol=1e-6,
                       verbose=TRUE)
 
-cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 1e-3, 5e-3, 1e-4, 5e-4, 1e-5), l1=l1,l2=l2,l3=l3, split_percentage = 0.6)
 
 coefs_lasso<-array(res_lasso$beta[-1,1,1])
 interc_init<-res_lasso$beta[1,1,1]
@@ -141,7 +146,10 @@ delta_hat[is.nan(delta_hat)]<-0
 predict_lasso<-kappa1(X%*%array(coefs_lasso, dim=c(length(coefs_lasso),1) )  + interc_init  ) #no intercept
 
 print(r2(y, predict_lasso))
-plot(predict_lasso, y)
+plot(predict_lasso, y, xlab = "Predictions", ylab = "True Values", main = "Predictions vs True Values")
+abline(a = 0, b = 1, col = "red")
+
+
 
 sum(beta_main_lasso==0)/length(beta_main_lasso)
 sum(beta_2way_lasso==0)/length(beta_2way_lasso)
