@@ -124,9 +124,9 @@ delta_hat[is.nan(delta_hat)]<-0
 
 ##USE SHIM MODEL #########
 
-lambda_beta<- 0.2 #0.2 #0.12
-lambda_gamma<- 0.8  #0.8 #0.6
-lambda_delta<-8  #9 #1
+lambda_beta<- 0.12#0.2 #0.12
+lambda_gamma<- 0.6  #0.8 #0.6
+lambda_delta<-1  #9 #1
 
 my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
 
@@ -142,11 +142,18 @@ my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta
 #cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(0.05,0.1,0.5,1), lambda_values_2way=c( 1,0.8,0.6), lambda_delta=1, split_percentage = 0.6, k=3)
 
 
-cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(0.06,0.08), lambda_values_2way=c( 0.8), lambda_delta=1, split_percentage = 0.6, k=3)
+#cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(0.12,0.08), lambda_values_2way=c( 0.8), lambda_delta=1, split_percentage = 0.6, k=3)
 
-lambda_beta<- cv$best_lambda1#0.2 #0.08
-lambda_gamma<- cv$best_lambda2  #0.8 #0.8
-lambda_delta<-1  #9 #1
+#cv_good<-cross_val_pipeline( X=X, y=y, lambda=best_lambda, lambda_values_main=c( 0.1,0.15, 0.2, 0.25 ), 
+                             #lambda_values_2way=c(0.1,0.3,0.6,0.9), lambda_delta=1e-4, split_percentage = 0.6, verbose=TRUE, k=3, l1=l1, l2=l2, l3=l3)
+
+cv_good<-cross_val_pipeline( X=X, y=y, lambda=best_lambda, lambda_values_main=c( 0.08, 0.1 ), 
+                             lambda_values_2way=c(0.8), lambda_delta=1e-4, split_percentage = 0.6, verbose=TRUE, k=3, l1=l1, l2=l2, l3=l3)
+
+
+lambda_beta<- cv_good$best_lambda1#0.08
+lambda_gamma<- cv_good$best_lambda2   #0.8
+lambda_delta<-1   #1
 fitted<-my_shim$fit(X=X, y=y, lambda_beta = lambda_beta, 
                     lambda_gamma = lambda_gamma, lambda_delta = lambda_delta, w_beta = 1, w_gamma = 1, w_delta = 1, tol=1e-2)
 

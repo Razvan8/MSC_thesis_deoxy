@@ -533,7 +533,7 @@ cross_validation_irlasso.cb <- function(X, y, lambda_values, l1, l2, l3, k = 3, 
   for (i in 1:k) {
     # Split the data
      # Change seed for each split to ensure different splits
-    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns=unlist(get_ranges(l1=l1, l2=l2, l3=l3)[2]), seed=i)
+    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns=unlist(get_ranges(l1=l1, l2=l2, l3=l3)[2]), seed=i*10)
     X_train <- split_result$X_train
     y_train <- split_result$y_train
     X_test <- split_result$X_test
@@ -551,8 +551,12 @@ cross_validation_irlasso.cb <- function(X, y, lambda_values, l1, l2, l3, k = 3, 
       coefs_lasso <- array(res_lasso$beta[-1,1,1])
       interc <- res_lasso$beta[1,1,1]
       pred_test <- kappa1(interc + X_test %*% coefs_lasso)
-      plot(pred_test, y_test, xlab = "Predicted yield", ylab = "True yield", main = "Predicted vs true yield")
+      plot(pred_test, y_test, xlab = "Predicted Yield", ylab = "True Yield", main = "Predicted vs True Yield")
+      #plot(pred_test, y_test, xlab = "Predictions", ylab = "True Values", main = "Predictions vs True Values")
       abline(a = 0, b = 1, col = "red")
+      
+
+   
       
       
       # Compute the R2 score
@@ -2090,7 +2094,8 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
   if (verbose == TRUE)
   {cat ("r2 score is ", r2(y_true, y_pred))
     #cat(length(y_true), ' ', length(y_pred))
-    plot(y_pred, y_true, xlab = "Predictions", ylab = "True Values", main = "Predictions vs True Values")
+    #plot(y_pred, y_true, xlab = "Predictions", ylab = "True Values", main = "Predictions vs True Values")
+    plot(y_pred, y_true, xlab = "Predicted Yield", ylab = "True Yield", main = "Predicted vs True Yield  ")
     abline(a = 0, b = 1, col = "red")}
   
   
@@ -2150,6 +2155,104 @@ SHIM_3way<-function(X,y, beta_init, gamma_init, delta_init,l1=36,l2=3,l3=4, scal
     
 }
   
+
+
+
+
+
+cross_val_pipeline<-function( X, y, lambda, lambda_values_main, 
+                             lambda_values_2way, lambda_delta, intercept, l1, l2, l3, split_percentage = 0.5, verbose=TRUE, k=3)
+{# Split the data
+  #self is big model SHIM_GLM
+  ranges<-get_ranges(l1=l1, l2=l2, l3=l3)
+  range_main<- unlist(ranges[1])
+  range_teta<- unlist(ranges[2])
+  range_psi<- unlist(ranges[3])
+  R2_scores <- matrix(0, nrow = length(lambda_values_main), ncol = length(lambda_values_2way))
+  for (i in 1:k) {
+    split_result <- split_data_safe(X=X, y=y, additional_percentage=split_percentage, specified_columns =unlist( get_ranges(l1=l1, l2=l2, l3=l3)[2]), seed=10*i )
+    X_train <- split_result$X_train
+    y_train <- split_result$y_train
+    X_test <- split_result$X_test
+    y_test <- split_result$y_test
+    
+    best_lambda <- NULL
+    best_R2score <- -Inf
+    
+    ####INIT FROM LASSO ####
+    res_lasso<-irlasso.cb(X=X_train, Y=y_train, lambda=lambda, w.lambda=NULL, beta0=NULL,
+                          centering=FALSE, scaling=FALSE, intercept=T,
+                          maxit=10, tol=0.0545, sd.tol=1e-6,
+                          verbose=TRUE)
+    
+    coefs_lasso<-array(res_lasso$beta[-1,1,1])
+    interc_init<-res_lasso$beta[1,1,1]
+    beta_main_lasso<-coefs_lasso[range_main]
+    beta_2way_lasso<-coefs_lasso[range_theta]
+    beta_3way_lasso<-coefs_lasso[range_psi]
+    beta_2way_lasso_without_gamma<-get_beta_vec_2way(beta_main_lasso,l1=l1,l2=l2,l3=l3,only_beta = TRUE)
+    
+    beta_hat<-beta_main_lasso
+    gamma_hat<- beta_2way_lasso/beta_2way_lasso_without_gamma
+    gamma_hat[is.nan(gamma_hat)]<-0
+    gamma_hat[!is.finite(gamma_hat)]<-0 #this is 0 in shim case
+    
+    beta_3way_lasso_without_delta<- get_beta_vec_3way(beta_2way_lasso_without_gamma*gamma_hat, l1=l1, l2=l2, l3=l3, only_beta = TRUE) #maybe better for shim init
+    delta_hat<- beta_3way_lasso/beta_3way_lasso_without_delta
+    delta_hat[!is.finite(delta_hat)]<-0
+    delta_hat[is.nan(delta_hat)]<-0
+    my_shim<-SHIM_3way(X=X_train, y=y_train, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
+    
+    ###INIT FINISHED---START SHIM
+    
+    for (j in 1:length(lambda_values_main)) {
+      lambda1 <- lambda_values_main[j]
+      for (l in 1:length(lambda_values_2way)) {
+        lambda2 <- lambda_values_2way[l]
+        
+        # Create and fit the model with the current lambda
+        fitted <- my_shim$fit(X=X_train, y=y_train, lambda_beta=lambda1, lambda_gamma=lambda2, lambda_delta=lambda_delta, w_beta=1, w_gamma=1, w_delta=1,  tol=1e-2,
+                      max_iter=20, compute_Q=Q_bern, intercept=interc_init, use_intercept=TRUE)
+        if (verbose==TRUE){
+          cat("Percentages of zeros in fitted: ", sum(fitted$beta_all[range_main]==0)/length(range_main), ', ', 
+              sum(fitted$beta_all[range_theta]==0)/ length(range_teta),', ' ,sum(fitted$beta_all[range_psi]==0)/length(range_psi), '   ')
+        }
+        
+        
+        # Compute the R2 score
+        R2_scores[j,l] <- R2_scores[j,l]+  my_shim$R2_score(self=fitted, X_new=X_test, y_true=y_test)
+        print(R2_scores)}} }
+  
+  # Average the R2 scores over all k splits
+  R2_scores <- R2_scores / k
+  
+  # Find the best lambda combination with the highest average R2 score
+  best_index <- which(R2_scores == max(R2_scores), arr.ind = TRUE)
+  best_lambda1 <- lambda_values_main[best_index[1]]
+  best_lambda2 <- lambda_values_2way[best_index[2]]
+  best_R2score <- R2_scores[best_index[1], best_index[2]]
+  
+  print(R2_scores)
+  
+  return(list("best_lambda1" = best_lambda1, "best_lambda2" = best_lambda2, "best_R2score" = best_R2score))
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

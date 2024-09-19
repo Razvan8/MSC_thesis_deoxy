@@ -68,7 +68,7 @@ delta_true[is.nan(delta_true)]<-0
 ###crossval lasso 
 
 #cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 1e-2,5e-3, 1e-3, 5e-4, 1e-4, 1e-5, 1e-6), l1=l1,l2=l2,l3=l3, split_percentage = 0.6)
-cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 7e-3, 5e-3,3e-3,  1e-3, 9e-4, 7e-4), l1=l1,l2=l2,l3=l3, split_percentage = 0.6, k=4)
+#cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 7e-3, 5e-3,3e-3,  1e-3, 9e-4, 7e-4), l1=l1,l2=l2,l3=l3, split_percentage = 0.6, k=4)
 
 #cross val just to get plot on validation set
 #cross_validation_irlasso.cb( X=X, y=y, lambda_values=c(   1e-3), l1=l1,l2=l2,l3=l3, split_percentage = 0.6, k=4)
@@ -76,24 +76,11 @@ cross_validation_irlasso.cb( X=X, y=y, lambda_values=c( 7e-3, 5e-3,3e-3,  1e-3, 
 
 lambda=1e-3 #lambda chose by cross val
 
-################## SELECT FINAL LMD FOR SHIM WITH CORRECT INITIALIZATION #####################
-#cv_good<-cross_val_pipeline( X=X, y=y, lambda=lambda, lambda_values_main=c(1e-3, 1e-4,1e-5,1e-6), 
-                             #lambda_values_2way=c(1e-10, 1e-8, 1e-5), lambda_delta=1e-4, split_percentage = 0.6, verbose=TRUE, k=3, l1=l1, l2=l2, l3=l3)
-
-cv_good<-cross_val_pipeline( X=X, y=y, lambda=lambda, lambda_values_main=c(5e-4,1e-3), 
-                             lambda_values_2way=c(1e-10), lambda_delta=1e-4, split_percentage = 0.6, verbose=TRUE, k=3, l1=l1, l2=l2, l3=l3)
-
-#used to get a plot on a validation set
-cv_good<-cross_val_pipeline( X=X, y=y, lambda=lambda, lambda_values_main=c(5e-4), 
-                             lambda_values_2way=c(1e-10), lambda_delta=1e-4, split_percentage = 0.6, verbose=TRUE, k=3, l1=l1, l2=l2, l3=l3)
-
-###############################################################################################
-
 res_lasso<-irlasso.cb(X=X, Y=y, lambda=lambda, w.lambda=NULL, beta0=NULL,
                       centering=FALSE, scaling=FALSE, intercept=T,
                       maxit=10, tol=0.0545, sd.tol=1e-6,
                       verbose=TRUE)
-#### RESULTS LASSO + initialize for SHIM
+res_lasso$beta
 
 coefs_lasso<-array(res_lasso$beta[-1,1,1])
 interc_init<-res_lasso$beta[1,1,1]
@@ -169,10 +156,30 @@ sum(beta_3way_recovered!=0)
 
 
 
-
 ##PREPARE FOR SHIM ###################################################################################################
 
+#beta_hat<-beta_main_lasso
+#gamma_hat<- beta_2way_lasso/beta_2way_lasso_without_gamma
+#gamma_hat[is.nan(gamma_hat)]<-0
+#gamma_hat[!is.finite(gamma_hat)]<-0 #this is 0 in shim case
+#delta_hat<- beta_3way_lasso/beta_3way_lasso_without_delta
+#delta_hat[!is.finite(delta_hat)]<-0
+#delta_hat[is.nan(delta_hat)]<-0
+
+
+
+
 my_shim<-SHIM_3way(X=X, y=y, beta_init = beta_hat, gamma_init = gamma_hat, delta_init = delta_hat, l1=l1, l2=l2, l3=l3, scale = FALSE)
+
+#cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(5e-5, 1e-4, 4e-4, 1e-3, 5e-3), lambda_values_2way=c( 1e-5, 1e-6, 1e-7), lambda_delta=1e-6,
+                              #intercept=interc_init, split_percentage = 0.6, k=2)
+
+cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(  1e-4, 5e-4), lambda_values_2way=c(1e-8, 1e-10), lambda_delta=1e-6,
+                               intercept=interc_init, split_percentage = 0.6, k=2)
+
+cv<-my_shim$cross_validation( X=X, y=y, lambda_values_main=c(  5e-4), lambda_values_2way=c( 1e-10), lambda_delta=1e-6,
+                             intercept=interc_init, split_percentage = 0.6, k=2)
+
 
 
 lambda_beta<-5e-4
@@ -180,8 +187,8 @@ lambda_gamma<-1e-10
 lambda_delta<-1e-6
 
 
-lambda_beta<-cv_good$best_lambda1
-lambda_gamma<-cv_good$best_lambda2
+lambda_beta<-cv$best_lambda1
+lambda_gamma<-cv$best_lambda2
 lambda_delta<-1e-6
 
 
